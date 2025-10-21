@@ -1,0 +1,10 @@
+// Remix Icon CDN loader for React
+// Place this in your index.html <head> or import in your main entry if using React
+// This is not a React component, just a helper for documentation
+// For React, you can use <i className="ri-eye-line"></i> etc. after loading the CDN below.
+
+// Add this to your public/index.html <head>:
+// <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+// Or import in your main.jsx (not recommended for production):
+// import 'remixicon/fonts/remixicon.css';

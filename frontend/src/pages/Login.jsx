@@ -83,7 +83,8 @@ const handleSocialLogin = (provider) => {
     // 🔹 Mock check: pretend these credentials are correct
     if (form.email && form.password) {
       alert('Logged in (mock)');
-      navigate('/mfa'); // pretend MFA page
+      // navigate('/mfa'); // pretend MFA page
+         navigate('/home'); // pretend HOME page
     } else {
       alert('Invalid credentials (mock)');
     }

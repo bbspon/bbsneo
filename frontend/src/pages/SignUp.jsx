@@ -1,11 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaGoogle, FaApple, FaFacebookF } from "react-icons/fa";
+import { FaGoogle, FaApple, FaEye, FaEyeSlash } from "react-icons/fa";
 import { API_BASE } from "../config/api";
-
-// import BGImage from '../assets/bg-image.jpg'; // Put your image in the assets folder
-
-
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -17,81 +13,82 @@ const SignUp = () => {
     confirmPassword: "",
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  // simple client validations
-  const nameValid = /^[A-Za-z ]{2,}$/.test(form.name.trim());
-  if (!nameValid) {
-    alert("Full name must be letters/spaces only, min 2 chars.");
-    return;
-  }
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    form.email.trim().toLowerCase()
-  );
-  if (!emailValid) {
-    alert("Enter a valid email address.");
-    return;
-  }
-  const phoneDigits = form.phone.replace(/\D/g, "");
-  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-    alert("Phone must be 10–15 digits (country code allowed).");
-    return;
-  }
-    const passwordValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$/.test(
-      form.password
+    // simple client validations
+    const nameValid = /^[A-Za-z ]{2,}$/.test(form.name.trim());
+    if (!nameValid) {
+      alert("Full name must be letters/spaces only, min 2 chars.");
+      return;
+    }
+
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      form.email.trim().toLowerCase()
     );
-    const passwordsMatch = form.password === form.confirmPassword;
+    if (!emailValid) {
+      alert("Enter a valid email address.");
+      return;
+    }
 
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+      alert("Phone must be 10–15 digits (country code allowed).");
+      return;
+    }
+
+    const passwordValid =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$/.test(form.password);
     if (!passwordValid) {
-    alert("Password must be 8+ chars with upper, lower, number, special.");
-    return;
-  }
+      alert("Password must be 8+ chars with upper, lower, number, special.");
+      return;
+    }
 
-    if (!passwordsMatch) {
+    if (form.password !== form.confirmPassword) {
       alert("Passwords do not match. Please confirm your password.");
       return;
     }
 
-  const payload = {
-    email: form.email.trim().toLowerCase(),
-    password: form.password,
-    displayName: form.name.trim(),
+    try {
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: form.phone,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+        }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Signup failed: ${res.status} ${txt}`);
+      }
+
+      const data = await res.json();
+      if (data?.accessToken) {
+        localStorage.setItem("bbsneo_access", data.accessToken);
+        if (data?.refreshToken)
+          localStorage.setItem("bbsneo_refresh", data.refreshToken);
+      }
+
+      alert("Signup successful");
+      localStorage.setItem('mfa_email', form.email.trim().toLowerCase());
+      navigate("/mfa");
+    } catch (err) {
+      console.error("Signup error:", err);
+      alert(err.message || "Network error. Please try again.");
+    }
   };
 
-  try {
-    const res = await fetch(`${API_BASE}/auth/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fullName: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone,
-        password: form.password,
-      }),
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      throw new Error(`Signup failed: ${res.status} ${txt}`);
-    }
-    const data = await res.json();
-
-    // AuthService returns accessToken and refreshToken
-    if (data?.accessToken) {
-      localStorage.setItem("bbsneo_access", data.accessToken);
-      if (data?.refreshToken) localStorage.setItem("bbsneo_refresh", data.refreshToken);
-    }
-
-    alert("Signup successful");
-    navigate("/mfa");
-  } catch (err) {
-    console.error("Signup error:", err);
-    alert(err.message || "Network error. Please try again.");
-  }
-};
   return (
     <div
       className="min-vh-100 d-flex justify-content-center align-items-center"
@@ -117,7 +114,7 @@ const SignUp = () => {
       >
         <h2 className="mb-4 text-center">Sign Up</h2>
         <form onSubmit={handleSubmit} className="p-3">
-          <label htmlFor="text" className="pb-2">Full name</label>
+          <label className="pb-2">Full name</label>
           <input
             type="text"
             name="name"
@@ -127,7 +124,8 @@ const SignUp = () => {
             value={form.name}
             required
           />
-          <label htmlFor="text" className="pb-2">E-mail</label>
+
+          <label className="pb-2">E-mail</label>
           <input
             type="email"
             name="email"
@@ -137,7 +135,8 @@ const SignUp = () => {
             value={form.email}
             required
           />
-          <label htmlFor="text" className="pb-2">Phone Number</label>
+
+          <label className="pb-2">Phone Number</label>
           <input
             type="tel"
             name="phone"
@@ -147,26 +146,49 @@ const SignUp = () => {
             value={form.phone}
             required
           />
-          <label htmlFor="text" className="pb-2">Password</label>
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            className="form-control mb-3"
-            onChange={handleChange}
-            value={form.password}
-            required
-          />
-          <label htmlFor="text" className="pb-2">Confirm Password</label>
-          <input
-            type="password"
-            name="confirmPassword"
-            placeholder="Confirm Password"
-            className="form-control mb-3"
-            onChange={handleChange}
-            value={form.confirmPassword}
-            required
-          />
+
+          <label className="pb-2">Password</label>
+          <div className="input-group mb-3">
+            <input
+              type={showPassword ? "text" : "password"}
+              name="password"
+              placeholder="Password"
+              className="form-control"
+              onChange={handleChange}
+              value={form.password}
+              required
+            />
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
+
+          <label className="pb-2">Confirm Password</label>
+          <div className="input-group mb-4">
+            <input
+              type={showConfirmPassword ? "text" : "password"}
+              name="confirmPassword"
+              placeholder="Confirm Password"
+              className="form-control"
+              onChange={handleChange}
+              value={form.confirmPassword}
+              required
+            />
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              tabIndex={-1}
+            >
+              {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+            </button>
+          </div>
+
           <button className="btn btn-primary w-100 mb-3">Sign Up</button>
         </form>
 

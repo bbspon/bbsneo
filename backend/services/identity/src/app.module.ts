@@ -1,31 +1,30 @@
 // backend/services/identity/src/app.module.ts
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import * as path from 'path';
 import { MongooseModule } from '@nestjs/mongoose';
-
-// Feature modules (these declare their own controllers/providers)
+import { MfaModule } from './modules/mfa/mfa.module';
 import { HealthModule } from './modules/health/health.module';
 import { SignupModule } from './modules/signup/signup.module';
-
-// Mongo models registered at the root so they’re available app-wide
 import { User, UserSchema } from './modules/profile/user.schema';
 
 @Module({
-  imports: [
-    // Load .env for the whole app
-    ConfigModule.forRoot({ isGlobal: true }),
 
-    // Connect to MongoDB (falls back to local if MONGO_URI is missing)
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        path.resolve(__dirname, '..', '..', 'identity.env'),
+      ],
+    }),
     MongooseModule.forRoot(
       process.env.MONGO_URI || 'mongodb://localhost:27017/bbsneo_identity'
     ),
-
-    // Register User collection/model
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-
-    // Feature modules (expose their own controllers)
     HealthModule,
     SignupModule,
+    MfaModule
   ],
 
   // Do NOT re-list HealthController/SignupController here,
