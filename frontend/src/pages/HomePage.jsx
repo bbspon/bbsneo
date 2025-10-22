@@ -217,7 +217,7 @@ const [showMessenger, setShowMessenger] = useState(false);
             </Nav.Link>
           </Nav>
         </aside> */}
-    <aside
+    {/* <aside
   className={`sidebar d-flex flex-column align-items-center ${collapsed ? "collapsed" : ""}`}
   onMouseEnter={() => setCollapsed(false)}
   onMouseLeave={() => setCollapsed(true)}
@@ -226,6 +226,19 @@ const [showMessenger, setShowMessenger] = useState(false);
     collapsed={collapsed}
     onToggleTheme={() => setDarkMode((d) => !d)}
   />
+</aside> */}
+<aside
+  className={`sidebar d-flex flex-column align-items-center ${collapsed ? "collapsed" : ""}`}
+  onMouseEnter={() => setCollapsed(false)}
+  onMouseLeave={() => setCollapsed(true)}
+>
+  <Sidebar
+
+  collapsed={collapsed}
+  onToggleTheme={() => setDarkMode((d) => !d)}
+  onHomeClick={() => window.location.reload()}
+/>
+
 </aside>
 
         {/* ---------- Main Content ---------- */}

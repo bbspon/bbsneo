@@ -22,7 +22,7 @@ const ICON_MAP = {
   meta: IconMeta, theme: IconTheme,
 };
 
-export default function Sidebar({ collapsed = false, onToggleTheme }) {
+export default function Sidebar({ collapsed = false, onToggleTheme, onHomeClick }) {
   const { pathname } = useLocation();
   const insideYStudio = pathname.startsWith("/ystudio");
 
@@ -56,7 +56,9 @@ export default function Sidebar({ collapsed = false, onToggleTheme }) {
                   <button
                     key={item.key}
                     type="button"
-                    onClick={onToggleTheme}
+                    // onClick={onToggleTheme}
+                    onClick={item.key === "home" ? (onHomeClick || undefined) : undefined}
+
                     className={`nav-link d-flex align-items-center justify-content-center ${active ? "active" : ""}`}
                   >
                     <Icon className="me-2" />
