@@ -29,6 +29,8 @@ import { BiCategory } from "react-icons/bi";
 import { SiShortcut } from "react-icons/si";
 import { SiYoutubestudio } from "react-icons/si";
 import { FaFacebookMessenger } from "react-icons/fa";
+import Sidebar from "../components/Sidebar";
+
 
 import Logo from "../assets/logo.png";
 // ---------- DEMO DATA ---------- //
@@ -120,7 +122,7 @@ const [showMessenger, setShowMessenger] = useState(false);
         }`}
       >
         {/* ---------- Sidebar ---------- */}
-        <aside
+        {/* <aside
           className={`sidebar d-flex flex-column align-items-center ${
             collapsed ? "collapsed" : ""
           }`}
@@ -214,7 +216,17 @@ const [showMessenger, setShowMessenger] = useState(false);
               <span>Theme</span>
             </Nav.Link>
           </Nav>
-        </aside>
+        </aside> */}
+    <aside
+  className={`sidebar d-flex flex-column align-items-center ${collapsed ? "collapsed" : ""}`}
+  onMouseEnter={() => setCollapsed(false)}
+  onMouseLeave={() => setCollapsed(true)}
+>
+  <Sidebar
+    collapsed={collapsed}
+    onToggleTheme={() => setDarkMode((d) => !d)}
+  />
+</aside>
 
         {/* ---------- Main Content ---------- */}
         <div className="main-content">

@@ -82,7 +82,7 @@ const SignUp = () => {
 
       alert("Signup successful");
       localStorage.setItem('mfa_email', form.email.trim().toLowerCase());
-      navigate("/mfa");
+      navigate("/home");
     } catch (err) {
       console.error("Signup error:", err);
       alert(err.message || "Network error. Please try again.");
