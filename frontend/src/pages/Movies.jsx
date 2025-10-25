@@ -1,58 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaPlay, FaPlus, FaCheck } from "react-icons/fa";
 import { Carousel } from "react-bootstrap";
-
-// Sample movie data with genres
-const moviesData = [
-  {
-    id: 1,
-    title: "Avengers: Endgame",
-    img: "https://image.tmdb.org/t/p/w500/ulzhLuWrPK07P1YkdWQLZnQh1JL.jpg",
-    genre: "Action",
-  },
-  {
-    id: 2,
-    title: "KGF Chapter 2",
-    img: "https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg",
-    genre: "Action",
-  },
-  {
-    id: 3,
-    title: "RRR",
-    img: "https://image.tmdb.org/t/p/w500/6ELCZlTA5lGUops70hKdB83WJxH.jpg",
-    genre: "Drama",
-  },
-  {
-    id: 4,
-    title: "Doctor Strange",
-    img: "https://image.tmdb.org/t/p/w500/6DrHO1jr3qVrViUO6s6kFiAGM7.jpg",
-    genre: "Fantasy",
-  },
-  {
-    id: 5,
-    title: "Brahmastra",
-    img: "https://image.tmdb.org/t/p/w500/vjnLXptqdxnpNJer5fWgj2OIGhL.jpg",
-    genre: "Fantasy",
-  },
-  {
-    id: 6,
-    title: "Pushpa",
-    img: "https://m.media-amazon.com/images/M/MV5BNWU1ZWFhNGQtZDhlZC00ZWFlLTlmNmEtN2VmYmZiN2Y5ZmQ2XkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg",
-    genre: "Drama",
-  },
-  {
-    id: 7,
-    title: "Spider-Man: No Way Home",
-    img: "https://image.tmdb.org/t/p/w500/1g0dhYtq4irTY1GPXvft6k4YLjm.jpg",
-    genre: "Action",
-  },
-  {
-    id: 8,
-    title: "The Batman",
-    img: "https://image.tmdb.org/t/p/w500/74xTEgt7R36Fpooo50r9T25onhq.jpg",
-    genre: "Thriller",
-  },
-];
 
 const genres = ["All", "Action", "Drama", "Fantasy", "Thriller"];
 
@@ -61,31 +9,58 @@ const MoviesPageBootstrap = () => {
   const [activeGenre, setActiveGenre] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [watchlist, setWatchlist] = useState([]);
+  const [movies, setMovies] = useState([]); // ← Add this line
 
   // ✅ Filter movies by search + genre
-  const filteredMovies = moviesData.filter((movie) => {
-    const matchGenre =
-      activeGenre === "All" || movie.genre === activeGenre;
-    const matchSearch = movie.title
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    return matchGenre && matchSearch;
-  });
+const safeStr = (v) => (typeof v === "string" ? v : "");
+const filteredMovies = (movies || []).filter((movie) => {
+  const title = safeStr(movie.title);
+  const genre = safeStr(movie.genre);
+  const matchGenre = activeGenre === "All" || genre === activeGenre;
+  const matchSearch = title.toLowerCase().includes(searchTerm.toLowerCase());
+  return matchGenre && matchSearch;
+});
+
 
   // ✅ Watchlist toggle
-  const toggleWatchlist = (id) => {
-    setWatchlist((prev) =>
-      prev.includes(id)
-        ? prev.filter((m) => m !== id)
-        : [...prev, id]
-    );
-  };
+const toggleWatchlist = (id) => {
+  setWatchlist((prev) =>
+    prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
+  );
+};
+
+useEffect(() => {
+  async function loadMovies() {
+    try {
+      const res = await fetch("http://localhost:3107/api/movies");
+      const json = await res.json();
+      if (json?.success && Array.isArray(json.data)) {
+        // Normalize shape so UI never breaks
+        const safe = (v) => (typeof v === "string" ? v : "");
+        const cleaned = json.data.map((m) => ({
+          id: m.id ?? m._id ?? crypto.randomUUID(),
+          title: safe(m.title),
+          img: safe(m.img),
+          genre: safe(m.genre) || "Action",
+        }));
+        setMovies(cleaned);
+      } else {
+        setMovies([]); // keep it safe
+      }
+    } catch (e) {
+      console.error("Movies fetch failed", e);
+      setMovies([]); // fail-safe
+    }
+  }
+  loadMovies();
+}, []);
+
 
   return (
     <div className="bg-dark text-white min-vh-100">
       {/* -------- Featured Carousel -------- */}
       <Carousel fade>
-        {moviesData.slice(0, 3).map((movie) => (
+        {(movies || []).slice(0, 3).map((movie) => (
           <Carousel.Item key={movie.id}>
             <div
               className="d-flex align-items-end"
@@ -136,10 +111,7 @@ const MoviesPageBootstrap = () => {
               </li>
             ))}
           </ul>
-          <form
-            className="d-flex"
-            onSubmit={(e) => e.preventDefault()}
-          >
+          <form className="d-flex" onSubmit={(e) => e.preventDefault()}>
             <input
               className="form-control me-2"
               type="search"

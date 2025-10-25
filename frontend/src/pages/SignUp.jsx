@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaGoogle, FaApple, FaEye, FaEyeSlash } from "react-icons/fa";
-import { API_BASE } from "../config/api";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -22,7 +21,7 @@ const SignUp = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // simple client validations
+    // validations (unchanged)
     const nameValid = /^[A-Za-z ]{2,}$/.test(form.name.trim());
     if (!nameValid) {
       alert("Full name must be letters/spaces only, min 2 chars.");
@@ -44,45 +43,47 @@ const SignUp = () => {
     }
 
     const passwordValid =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$/.test(form.password);
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$/.test(
+        form.password
+      );
     if (!passwordValid) {
       alert("Password must be 8+ chars with upper, lower, number, special.");
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      alert("Passwords do not match. Please confirm your password.");
+      alert("Passwords do not match.");
       return;
     }
 
     try {
-      const res = await fetch(`${API_BASE}/auth/signup`, {
+      // ✅ updated API endpoint to match backend
+      const res = await fetch("http://127.0.0.1:3103/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName: form.name.trim(),
           email: form.email.trim().toLowerCase(),
-          phone: form.phone,
+          phoneNumber: form.phone.trim(),
           password: form.password,
-          confirmPassword: form.confirmPassword,
+          signUpMethod: "Manual",
         }),
       });
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`Signup failed: ${res.status} ${txt}`);
+        const text = await res.text().catch(() => "");
+        throw new Error(`Signup failed: ${res.status} ${text}`);
       }
 
       const data = await res.json();
-      if (data?.accessToken) {
-        localStorage.setItem("bbsneo_access", data.accessToken);
-        if (data?.refreshToken)
-          localStorage.setItem("bbsneo_refresh", data.refreshToken);
-      }
+      console.log("Signup response:", data);
 
-      alert("Signup successful");
-      localStorage.setItem('mfa_email', form.email.trim().toLowerCase());
-      navigate("/home");
+      if (data?.id) {
+        alert("Signup successful!");
+        navigate("/home");
+      } else {
+        alert("Signup completed, but no ID returned.");
+      }
     } catch (err) {
       console.error("Signup error:", err);
       alert(err.message || "Network error. Please try again.");

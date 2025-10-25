@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 import {
   Container,
   Row,
@@ -19,9 +19,11 @@ import {
   FaLock,
   FaEnvelope,
 } from "react-icons/fa";
+import { API_BASE } from "../config/api";
+
 const Login = () => {
   const navigate = useNavigate();
-const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,28 +50,26 @@ const [email, setEmail] = useState("");
     }, 1200);
   };
 
-const handleSocialLogin = (provider) => {
-  const urls = {
-    Google: "https://accounts.google.com/signin",
-    Facebook: "https://www.facebook.com/login",
-    Apple: "https://appleid.apple.com/",
-    Twitter: "https://twitter.com/login",
-  
+  const handleSocialLogin = (provider) => {
+    const urls = {
+      Google: "https://accounts.google.com/signin",
+      Facebook: "https://www.facebook.com/login",
+      Apple: "https://appleid.apple.com/",
+      Twitter: "https://twitter.com/login",
+    };
+
+    const url = urls[provider];
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      alert(`No login URL configured for ${provider}`);
+    }
   };
 
-  const url = urls[provider];
-  if (url) {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } else {
-    alert(`No login URL configured for ${provider}`);
-  }
-};
-
-
   // Email/Password form state
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: "", password: "" });
   // Phone login state
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState("");
   // Mock flag for OTP
   const [otpSent, setOtpSent] = useState(false);
 
@@ -78,41 +78,93 @@ const handleSocialLogin = (provider) => {
     setForm({ ...form, [e.target.name]: e.target.value });
 
   // Mock email/password login
-  const handleSubmit = (e) => {
+  // Real email/password login (keeps same UI)
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // 🔹 Mock check: pretend these credentials are correct
-    if (form.email && form.password) {
-      alert('Logged in (mock)');
-      // navigate('/mfa'); // pretend MFA page
-         navigate('/home'); // pretend HOME page
-    } else {
-      alert('Invalid credentials (mock)');
+
+    const email = (form.email || "").trim().toLowerCase();
+    const password = form.password || "";
+
+    if (!email || !password) {
+      alert("Please enter both email and password.");
+      return;
+    }
+
+    try {
+      // [API-INTEG] normalize base URL to avoid double slashes
+      // [API-INTEG] normalize endpoint from API_BASE safely
+      const rawBase = (API_BASE || "http://127.0.0.1:3103").replace(/\/+$/, "");
+
+      // If API_BASE already ends with /login (or /login/...), use it directly.
+      // Else if API_BASE ends with /v1/identity, append /login.
+      // Else (plain host), append /login.
+      let url = rawBase;
+      if (!/\/login\/?$/.test(rawBase)) {
+        if (/\/v1\/identity\/?$/.test(rawBase)) {
+          url = `${rawBase}/login`;
+        } else {
+          url = `${rawBase}/login`;
+        }
+      }
+      // url is now the final endpoint
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      // [API-INTEG] handle non-2xx
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        // prefer server message if available
+        const message = txt || `Login failed (${res.status})`;
+        throw new Error(message);
+      }
+
+      // [API-INTEG] parse and persist token/user
+      const data = await res.json();
+
+      if (data?.token) {
+        localStorage.setItem("bbsneo_token", data.token); // keep token
+      }
+      if (data?.user) {
+        try {
+          localStorage.setItem("bbsneo_user", JSON.stringify(data.user)); // optional user cache
+        } catch {}
+      }
+
+      alert("Login successful!");
+      navigate("/home");
+    } catch (err) {
+      console.error("Login error:", err);
+      // [API-INTEG] friendly alert while preserving console for debugging
+      alert(err?.message || "Invalid credentials or server error.");
     }
   };
 
   // Mock phone login logic
   const handlePhoneLogin = (e) => {
-  e.preventDefault();
-  if (!/^[0-9]{10}$/.test(phone)) {
+    e.preventDefault();
+    if (!/^[0-9]{10}$/.test(phone)) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid Number",
+        text: "Enter a valid 10-digit phone number",
+      });
+      return;
+    }
+
+    setOtpSent(true);
     Swal.fire({
-      icon: 'error',
-      title: 'Invalid Number',
-      text: 'Enter a valid 10-digit phone number',
+      icon: "success",
+      title: "OTP Sent",
+      text: `OTP sent to +91${phone}`,
+      timer: 2000,
+      showConfirmButton: false,
     });
-    return;
-  }
 
-  setOtpSent(true);
-  Swal.fire({
-    icon: 'success',
-    title: 'OTP Sent',
-    text: `OTP sent to +91${phone}`,
-    timer: 2000,
-    showConfirmButton: false,
-  });
-
-  setTimeout(() => navigate('/otp-verify', { state: { phone } }), 1000);
-};
+    setTimeout(() => navigate("/otp-verify", { state: { phone } }), 1000);
+  };
   return (
     <div className="container-fluid vh-100">
       <div className="row h-100">
@@ -122,8 +174,8 @@ const handleSocialLogin = (provider) => {
           style={{
             backgroundImage:
               "url('https://img.freepik.com/premium-photo/popcorn-bucket-clapper-board-film-reel-inside-big-movie-theater_285885-2785.jpg?w=2000')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
         ></div>
 
@@ -177,7 +229,7 @@ const handleSocialLogin = (provider) => {
                 />
               </div>
               <button className="btn btn-primary w-100">
-                {otpSent ? 'OTP Sent (Mock)' : 'Get OTP'}
+                {otpSent ? "OTP Sent (Mock)" : "Get OTP"}
               </button>
             </form>
 
@@ -188,35 +240,33 @@ const handleSocialLogin = (provider) => {
             <p className="text-center">
               <Link to="/forward-password">Forgot Password</Link>
             </p>
-              <p className="text-center text-muted mb-2">Or continue with</p>
+            <p className="text-center text-muted mb-2">Or continue with</p>
 
-              <div className="d-flex justify-content-center gap-3">
-                <Button
-                  variant="light"
-                  className="border rounded-circle p-3"
-                  onClick={() => handleSocialLogin("Google")}
-                >
-                  <FaGoogle size={20} color="#DB4437" />
-                </Button>
+            <div className="d-flex justify-content-center gap-3">
+              <Button
+                variant="light"
+                className="border rounded-circle p-3"
+                onClick={() => handleSocialLogin("Google")}
+              >
+                <FaGoogle size={20} color="#DB4437" />
+              </Button>
 
-             
+              <Button
+                variant="light"
+                className="border rounded-circle p-3"
+                onClick={() => handleSocialLogin("Apple")}
+              >
+                <FaApple size={22} color="#000" />
+              </Button>
 
-                <Button
-                  variant="light"
-                  className="border rounded-circle p-3"
-                  onClick={() => handleSocialLogin("Apple")}
-                >
-                  <FaApple size={22} color="#000" />
-                </Button>
-
-                <Button
-                  variant="light"
-                  className="border rounded-circle p-3"
-                  onClick={() => handleSocialLogin("Android")}
-                >
-                  <FaAndroid size={22} color="#3DDC84" />
-                </Button>
-              </div>
+              <Button
+                variant="light"
+                className="border rounded-circle p-3"
+                onClick={() => handleSocialLogin("Android")}
+              >
+                <FaAndroid size={22} color="#3DDC84" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

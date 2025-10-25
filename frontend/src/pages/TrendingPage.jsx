@@ -20,56 +20,18 @@ import {
   FaBookmark,
 } from "react-icons/fa";
 import "bootstrap/dist/css/bootstrap.min.css";
+import axios from "axios";
 
-const sampleTrending = [
-  {
-    id: 1,
-    type: "video",
-    title: "Top 10 Travel Destinations",
-    user: "TravelGuru",
-    views: "1.2M",
-    likes: "50K",
-    comments: "1.2K",
-    media: "https://www.w3schools.com/html/mov_bbb.mp4",
-  },
-  {
-    id: 2,
-    type: "image",
-    title: "Amazing Sunset",
-    user: "NatureLover",
-    views: "500K",
-    likes: "20K",
-    comments: "500",
-    media: "https://www.w3schools.com/w3images/lights.jpg",
-  },
-  {
-    id: 3,
-    type: "post",
-    title: "Tips for Productivity",
-    user: "LifeCoach",
-    views: "300K",
-    likes: "15K",
-    comments: "200",
-    media: null,
-  },
-  {
-    id: 4,
-    type: "video",
-    title: "Reel: Coding in 60 Seconds",
-    user: "CodeMaster",
-    views: "800K",
-    likes: "30K",
-    comments: "800",
-    media: "https://www.w3schools.com/html/movie.mp4",
-  },
-];
+
+const API_BASE = "http://127.0.0.1:3107";
+
 
 const TrendingPage = () => {
-  const [trending, setTrending] = useState(sampleTrending);
   const [showModal, setShowModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [showSidebar, setShowSidebar] = useState(true); // Desktop toggle
   const [showMobileSidebar, setShowMobileSidebar] = useState(false); // Mobile
+const [trending, setTrending] = useState([]);
 
   const videoRefs = useRef([]);
 
@@ -85,6 +47,41 @@ const TrendingPage = () => {
 
   const toggleSidebar = () => setShowSidebar(!showSidebar);
   const toggleMobileSidebar = () => setShowMobileSidebar(!showMobileSidebar);
+useEffect(() => {
+const fetchTrending = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/trending`);
+    const isVideoLike = (u) => /\.(mp4|webm|ogg)(\?.*)?$/i.test(u || "");
+    const isImageLike = (u) =>
+      /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(u || "");
+
+    const data = res.data.map((item) => {
+      // Prefer mediaUrl if present, else fall back to thumbnailUrl
+      const media = item.mediaUrl || item.thumbnailUrl || "";
+
+      const type = isVideoLike(media) ? "video" : "image"; // default to image if not a known video type
+
+      return {
+        id: item._id,
+        type,
+        title: item.title,
+        user: item.creatorName || item.user,
+        views: item.viewsCount,
+        likes: item.likesCount,
+        comments: String(item.commentsCount || 0),
+        media, // what we actually render
+        thumb: item.thumbnailUrl || "", // used as poster/fallback
+      };
+    });
+
+    setTrending(data);
+  } catch (err) {
+    console.error("Failed to fetch trending:", err);
+  }
+};
+
+  fetchTrending();
+}, []);
 
   // Auto-play videos on hover
   useEffect(() => {
@@ -137,10 +134,7 @@ const TrendingPage = () => {
 
       <Row>
         {/* Desktop Sidebar */}
-        <Col
-          md={showSidebar ? 3 : 1}
-          className={`d-none d-md-block sidebar`}
-        >
+        <Col md={showSidebar ? 3 : 1} className={`d-none d-md-block sidebar`}>
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>
@@ -172,7 +166,6 @@ const TrendingPage = () => {
         <Col md={showSidebar ? 9 : 11}>
           {/* Desktop toggle button */}
 
-
           {/* Search Bar */}
           <Row className="mb-3">
             <Col>
@@ -191,6 +184,7 @@ const TrendingPage = () => {
                     <video
                       ref={(el) => (videoRefs.current[index] = el)}
                       src={post.media}
+                      poster={post.thumb || "/thumbnails/placeholder.jpg"}
                       style={{
                         width: "100%",
                         height: "200px",
@@ -198,15 +192,21 @@ const TrendingPage = () => {
                       }}
                       muted
                       loop
+                      playsInline
                     />
                   )}
+
                   {post.type === "image" && (
                     <Card.Img
                       variant="top"
                       src={post.media}
+                      onError={(e) => {
+                        e.currentTarget.src = "/thumbnails/placeholder.jpg";
+                      }}
                       style={{ height: "200px", objectFit: "cover" }}
                     />
                   )}
+
                   <Card.Body className="d-flex flex-column">
                     <Card.Title>{post.title}</Card.Title>
                     <Card.Subtitle className="mb-2 text-muted">

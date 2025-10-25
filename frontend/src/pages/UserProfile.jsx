@@ -16,6 +16,46 @@ import { FaUserCircle, FaEdit, FaPlus, FaPlay, FaTrash } from "react-icons/fa";
 import Swal from "sweetalert2";
 import { IoSettingsOutline } from "react-icons/io5";
 
+/* ======================= [API-PROFILE] helpers START ======================= */
+const API_BASE = (
+  import.meta?.env?.VITE_API_BASE || "http://127.0.0.1:3103"
+).replace(/\/+$/, "");
+const authHeader = () => {
+  const t = localStorage.getItem("bbsneo_token");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+const getMe = async () => {
+  const res = await fetch(`${API_BASE}/profile`, {
+    headers: { "Content-Type": "application/json", ...authHeader() },
+  });
+  if (!res.ok) {
+    let txt = "";
+    try {
+      txt = await res.text();
+    } catch {}
+    throw new Error(txt || `GET /profile failed (${res.status})`);
+  }
+  return res.json();
+};
+
+const updateMe = async (payload) => {
+  const res = await fetch(`${API_BASE}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let txt = "";
+    try {
+      txt = await res.text();
+    } catch {}
+    throw new Error(txt || `PUT /profile failed (${res.status})`);
+  }
+  return res.json();
+};
+/* ======================= [API-PROFILE] helpers END ========================= */
+
 // Initial mock data
 const initialProfiles = [
   {
@@ -58,158 +98,144 @@ const initialContinueWatching = [
 ];
 
 const UserProfilePage = ({ show, onHide }) => {
+  // Core data
   const [profiles, setProfiles] = useState(initialProfiles);
   const [watchlist, setWatchlist] = useState(initialWatchlist);
   const [continueWatching, setContinueWatching] = useState(
     initialContinueWatching
   );
 
+  // Active profile (new) — drives header avatar
+  const [activeProfileId, setActiveProfileId] = useState(null);
+
+  // Modals and form state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentProfile, setCurrentProfile] = useState(null);
-  const [isAddMode, setIsAddMode] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isAddMode, setIsAddMode] = useState(true);
 
   const [showPinModal, setShowPinModal] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [pinInput, setPinInput] = useState("");
 
-  const [topPosition, setTopPosition] = useState(-100);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const [streamingQuality, setStreamingQuality] = useState("Auto");
-  const [language, setLanguage] = useState("English");
-  const [autoplay, setAutoplay] = useState(true);
-  const [notifications, setNotifications] = useState(true);
-  const [subtitles, setSubtitles] = useState("Off");
-  const [dataSaver, setDataSaver] = useState(false);
-  const [parentalPin, setParentalPin] = useState("");
-  const [downloadQuality, setDownloadQuality] = useState("Standard");
-  const [devices, setDevices] = useState([
-    { id: 1, name: "Device 1", lastActive: "02 Oct 2025" },
-    { id: 2, name: "Device 2", lastActive: "28 Sep 2025" },
-  ]);
+  // Settings & preferences
+  const [streamingQuality, setStreamingQuality] = useState("auto");
+  const [autoplayNext, setAutoplayNext] = useState(true);
+  const [downloadQuality, setDownloadQuality] = useState("standard");
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
+  const [contentRestrictions, setContentRestrictions] = useState({
+    violence: false,
+    adult: false,
+  });
 
-  // Handlers
-  const handleRemoveDevice = (id) => {
-    setDevices(devices.filter((d) => d.id !== id));
-  };
+  // Header user info bound to API
+  const [userHeader, setUserHeader] = useState({
+    fullName: "paavu",
+    email: "user@example.com",
+    subscriptionPlan: "Free",
+    nextRenewalDate: "-",
+  });
 
-  const handleSaveSettings = () => {
-    const settings = {
-      streamingQuality,
-      language,
-      autoplay,
-      notifications,
-      subtitles,
-      dataSaver,
-      parentalPin,
-      downloadQuality,
-      devices,
-    };
-    console.log("Saved Settings:", settings);
-
-    // SweetAlert success popup
-    Swal.fire({
-      icon: "success",
-      title: "Settings Saved",
-      text: "Your preferences have been updated successfully!",
-      timer: 2000, // auto close after 2 seconds
-      showConfirmButton: false,
-      background: "#a72323ff",
-      color: "#fff",
-    });
-
-    onHide(); // close modal
-  };
-  
+  /* =============== [API-PROFILE] Load -> GET /profile START =============== */
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTopPosition((prev) => (prev >= 0 ? -100 : prev + 1)); // scroll from -100% to 0%
-    }, 150); // adjust speed
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // ------------------ Profile Modal Handlers ------------------
-  const handleEditProfile = (profile) => {
-    setCurrentProfile(profile);
-    setIsAddMode(false);
-    setShowProfileModal(true);
-  };
-
-  const handleAddProfile = () => {
-    setCurrentProfile({ name: "", avatar: "", isChild: false, pin: "" });
-    setIsAddMode(true);
-    setShowProfileModal(true);
-  };
-
-  const handleshowSettingsModal = () => {
-    setShowSettingsModal(true);
-  };
-  const handleDeleteProfile = (id) => {
-    Swal.fire({
-      title: "Are you sure?",
-      text: "Do you really want to delete this profile?",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      background: "#1e1e1e",
-      color: "white",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setProfiles((prev) => prev.filter((p) => p.id !== id));
-        Swal.fire({
-          title: "Deleted!",
-          text: "The profile has been deleted.",
-          icon: "success",
-          background: "#1e1e1e",
-          color: "white",
-          timer: 1500,
-          showConfirmButton: false,
+    const load = async () => {
+      try {
+        const me = await getMe();
+        // Bind header
+        setUserHeader({
+          fullName: me.fullName || me.name || userHeader.fullName,
+          email: me.email || userHeader.email,
+          subscriptionPlan: me.subscriptionPlan || userHeader.subscriptionPlan,
+          nextRenewalDate: me.nextRenewalDate
+            ? new Date(me.nextRenewalDate).toDateString()
+            : userHeader.nextRenewalDate,
         });
+
+        // Profiles (use synthetic numeric id for UI)
+        const withIds =
+          Array.isArray(me.profiles) && me.profiles.length
+            ? me.profiles.map((p, i) => ({
+                id: i + 1,
+                name: p.name || `Profile ${i + 1}`,
+                avatar: p.avatar || "",
+                isChild: !!p.isChild,
+                pin: p.pin || "",
+                language: p.language || "",
+              }))
+            : initialProfiles;
+
+        setProfiles(withIds);
+
+        // Restore active profile (or default to first) and persist
+        const savedPid = localStorage.getItem("bbsneo_active_profile");
+        if (savedPid && withIds.some((p) => p.id === Number(savedPid))) {
+          setActiveProfileId(Number(savedPid));
+        } else if (withIds.length) {
+          setActiveProfileId(withIds[0].id);
+          localStorage.setItem("bbsneo_active_profile", String(withIds[0].id));
+        }
+      } catch (e) {
+        console.error("GET /profile failed:", e);
+        // keep UI usable with mock data
       }
-    });
-  };
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* =============== [API-PROFILE] Load -> GET /profile END ================= */
 
-  const handleSaveProfile = () => {
-    if (isAddMode) {
-      setProfiles((prev) => [...prev, { ...currentProfile, id: Date.now() }]);
-    } else {
-      setProfiles((prev) =>
-        prev.map((p) => (p.id === currentProfile.id ? currentProfile : p))
-      );
+  // Header avatar from active profile
+  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+  const headerAvatar = activeProfile?.avatar || null;
+
+  // Upgrade plan
+  const handleUpgradePlan = () => setShowUpgradeModal(true);
+  const handleSaveUpgrade = async (plan) => {
+    try {
+      const me = await updateMe({ subscriptionPlan: plan });
+      setUserHeader((uh) => ({
+        ...uh,
+        subscriptionPlan: me.subscriptionPlan || plan,
+        nextRenewalDate: me.nextRenewalDate
+          ? new Date(me.nextRenewalDate).toDateString()
+          : uh.nextRenewalDate,
+      }));
+      Swal.fire({
+        icon: "success",
+        title: "Plan updated",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      console.error("Plan update failed:", e);
+      Swal.fire({ icon: "error", title: "Failed to update plan" });
+    } finally {
+      setShowUpgradeModal(false);
     }
-    setShowProfileModal(false);
-    setCurrentProfile(null);
   };
 
-  // ------------------ Upgrade Plan ------------------
-  const handleUpgradePlan = () => {
-    setShowUpgradeModal(true);
-  };
+  // Settings modal
+  const handleshowSettingsModal = () => setShowSettingsModal(true);
 
-  const handleSaveUpgrade = () => {
-    alert("Plan upgraded successfully!");
-    setShowUpgradeModal(false);
-  };
-
-  // ------------------ Watchlist ------------------
+  // Watchlist
   const handleRemoveWatchlist = (id) => {
     setWatchlist((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // ------------------ Profile Selection / Kids PIN ------------------
+  // Profile selection / Kids PIN — also set active profile
   const handleSelectProfile = (profile) => {
+    setActiveProfileId(profile.id);
+    localStorage.setItem("bbsneo_active_profile", String(profile.id));
+
     if (profile.isChild) {
       setSelectedProfile(profile);
       setPinInput("");
       setShowPinModal(true);
     } else {
-      // Redirect to home page
-      window.location.href = "/home"; // replace with your router push if using react-router
+      window.location.href = "/home";
     }
   };
 
@@ -217,9 +243,123 @@ const UserProfilePage = ({ show, onHide }) => {
     if (pinInput === selectedProfile.pin) {
       setShowPinModal(false);
       setSelectedProfile(null);
-      window.location.href = "/home"; // replace with router push
+      window.location.href = "/home";
     } else {
       alert("Incorrect PIN. Please try again.");
+    }
+  };
+
+  // Add/Edit/Delete profiles (pure UI; persist via PUT /profile)
+  const handleOpenAddProfile = () => {
+    setIsAddMode(true);
+    setCurrentProfile({
+      name: "",
+      avatar: "",
+      isChild: false,
+      pin: "",
+      language: "",
+    });
+    setShowProfileModal(true);
+  };
+
+  const handleOpenEditProfile = (p) => {
+    setIsAddMode(false);
+    setCurrentProfile({ ...p });
+    setShowProfileModal(true);
+  };
+
+  const persistProfiles = async (list) => {
+    // Convert back to API shape (drop UI-only id)
+    const payloadProfiles = list.map(({ id, ...rest }) => rest);
+    return updateMe({ profiles: payloadProfiles });
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      let next;
+      if (isAddMode) {
+        const nextId = profiles.length
+          ? Math.max(...profiles.map((p) => p.id)) + 1
+          : 1;
+        next = [...profiles, { id: nextId, ...currentProfile }];
+      } else {
+        next = profiles.map((p) =>
+          p.id === currentProfile.id ? { ...currentProfile } : p
+        );
+      }
+
+      const saved = await persistProfiles(next);
+      const withIds = (saved.profiles || []).map((p, i) => ({
+        id: i + 1,
+        name: p.name || `Profile ${i + 1}`,
+        avatar: p.avatar || "",
+        isChild: !!p.isChild,
+        pin: p.pin || "",
+        language: p.language || "",
+      }));
+      setProfiles(withIds);
+
+      // keep active selection stable; if missing, fallback to first
+      const stillThere = withIds.find((p) => p.id === activeProfileId);
+      const nextActive = stillThere ? stillThere.id : withIds[0]?.id ?? null;
+      setActiveProfileId(nextActive);
+      if (nextActive)
+        localStorage.setItem("bbsneo_active_profile", String(nextActive));
+      else localStorage.removeItem("bbsneo_active_profile");
+
+      setShowProfileModal(false);
+      Swal.fire({
+        icon: "success",
+        title: isAddMode ? "Profile added" : "Profile updated",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      console.error("Save profile failed:", e);
+      Swal.fire({ icon: "error", title: "Failed to save profile" });
+    }
+  };
+
+  const handleDeleteProfile = async (id) => {
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Delete this profile?",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      const next = profiles.filter((p) => p.id !== id);
+      const saved = await persistProfiles(next);
+      const withIds = (saved.profiles || []).map((p, i) => ({
+        id: i + 1,
+        name: p.name || `Profile ${i + 1}`,
+        avatar: p.avatar || "",
+        isChild: !!p.isChild,
+        pin: p.pin || "",
+        language: p.language || "",
+      }));
+      setProfiles(withIds);
+
+      // update active profile if deleted
+      if (activeProfileId === id) {
+        const fallback = withIds[0]?.id ?? null;
+        setActiveProfileId(fallback);
+        if (fallback)
+          localStorage.setItem("bbsneo_active_profile", String(fallback));
+        else localStorage.removeItem("bbsneo_active_profile");
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "Profile deleted",
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      console.error("Delete profile failed:", e);
+      Swal.fire({ icon: "error", title: "Failed to delete profile" });
     }
   };
 
@@ -236,23 +376,43 @@ const UserProfilePage = ({ show, onHide }) => {
       <Card className="mb-4 shadow-sm p-3 ">
         <Row className=" d-flex  flex-row align-items-center w-100 justify-content-between gap-3">
           <Col md={2} className="text-center">
-            <FaUserCircle size={80} />
+            {headerAvatar ? (
+              <img
+                src={headerAvatar}
+                alt="Profile"
+                className="rounded-circle"
+                style={{ width: 80, height: 80, objectFit: "cover" }}
+              />
+            ) : (
+              <FaUserCircle size={80} />
+            )}
           </Col>
           <Col md={7}>
-            <h4 className="mb-1">Medun</h4>
-            <p className="mb-1">Email: medun@example.com</p>
+            {/* ================== [API-PROFILE] header bind START ================== */}
+            <h4 className="mb-1">{userHeader.fullName}</h4>
+            <p className="mb-1">Email: {userHeader.email}</p>
             <p className="mb-0">
-              Subscription: Premium Plan - Next Renewal: 15 Oct 2025
+              Subscription: {userHeader.subscriptionPlan} Plan - Next Renewal:{" "}
+              {userHeader.nextRenewalDate}
             </p>
+            {/* =================== [API-PROFILE] header bind END =================== */}
           </Col>
           <Col
             md={3}
             className="text-md-end text-center mt-2 mt-md-0 gap-2 d-flex w-100 flex-row  align-items-center justify-content-between"
           >
-            <Button variant="danger" onClick={handleUpgradePlan} className="gap-1 w-100 bg-warning text-dark">
+            <Button
+              variant="danger"
+              onClick={handleUpgradePlan}
+              className="gap-1 w-100 bg-warning text-dark"
+            >
               Upgrade Plan
             </Button>
-            <Button variant="primary" onClick={handleshowSettingsModal} className="gap-1 w-100 bg-warning text-dark">
+            <Button
+              variant="primary"
+              onClick={handleshowSettingsModal}
+              className="gap-1 w-100 bg-warning text-dark"
+            >
               <IoSettingsOutline /> Settings & Help
             </Button>
           </Col>
@@ -280,24 +440,28 @@ const UserProfilePage = ({ show, onHide }) => {
                   height: "80px",
                   objectFit: "cover",
                   cursor: "pointer",
+                  border:
+                    activeProfileId === profile.id
+                      ? "3px solid #0d6efd"
+                      : "2px solid #ccc",
                 }}
                 onClick={() => handleSelectProfile(profile)}
               />
               <p className="mb-2">{profile.name}</p>
               <div className="d-flex justify-content-center gap-2">
                 <Button
-                  size="sm"
                   variant="outline-secondary"
-                  onClick={() => handleEditProfile(profile)}
+                  size="sm"
+                  onClick={() => handleOpenEditProfile(profile)}
                 >
                   <FaEdit /> Edit
                 </Button>
                 <Button
-                  size="sm"
                   variant="outline-danger"
+                  size="sm"
                   onClick={() => handleDeleteProfile(profile.id)}
                 >
-                  <FaTrash />
+                  <FaTrash /> Delete
                 </Button>
               </div>
             </Col>
@@ -306,108 +470,50 @@ const UserProfilePage = ({ show, onHide }) => {
           {/* Add Profile Card */}
           <Col xs={6} sm={4} md={2} className="text-center mb-4">
             <div
-              className="card text-center p-3"
+              className="d-flex flex-column align-items-center justify-content-center rounded"
               style={{
                 width: "100%",
+                height: "120px",
+                backgroundColor: "#333",
+                color: "#fff",
                 cursor: "pointer",
-                transition: "transform 0.3s",
-                borderRadius: "10px",
-                backgroundColor: "rgba(0, 0, 0, 0.8)",
-                color: "white",
               }}
-              onClick={handleAddProfile}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.transform = "scale(1.05)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.transform = "scale(1)")
-              }
+              onClick={handleOpenAddProfile}
             >
-              <div
-                className="d-flex align-items-center justify-content-center rounded-circle mb-2"
-                style={{
-                  width: "80px",
-                  height: "80px",
-                  margin: "0 auto",
-                  backgroundColor: "#857979ff",
-                  fontSize: "36px",
-                  border: "2px solid white",
-                }}
-              >
-                <FaPlus />
-              </div>
-              <h6 className="mt-4">Add Profile</h6>
+              <FaPlus size={24} />
+              <span className="mt-2">Add Profile</span>
             </div>
           </Col>
         </Row>
       </Card>
 
-      {/* Watchlist */}
+      {/* Watchlist Section */}
       <Card className="mb-4 shadow-sm p-3">
         <Card.Title>Watchlist</Card.Title>
-        <Carousel indicators={false} className="mt-3">
-          {watchlist.map((item) => (
-            <Carousel.Item key={item.id}>
-              <Row className="justify-content-center">
-                <Col xs={10} sm={6} md={3}>
-                  <Card className="shadow-sm text-center">
-                    <Card.Img
-                      variant="top"
-                      src={item.img}
-                      style={{ height: "300px", objectFit: "cover" }}
-                    />
-                    <Card.Body>
-                      <Card.Title style={{ fontSize: "1rem" }}>
-                        {item.title}
-                      </Card.Title>
-                      <Button size="sm" variant="primary" className="me-2">
-                        <FaPlay /> Play
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleRemoveWatchlist(item.id)}
-                      >
-                        <FaTrash />
-                      </Button>
-                    </Card.Body>
-                  </Card>
-                </Col>
-              </Row>
-            </Carousel.Item>
-          ))}
-        </Carousel>
-      </Card>
-
-      {/* Continue Watching */}
-      <Card className="mb-4 shadow-sm p-3">
-        <Card.Title>Continue Watching</Card.Title>
         <Row className="mt-3">
-          {continueWatching.map((item) => (
-            <Col key={item.id} xs={12} sm={6} md={3} className="mb-4">
-              <Card className="shadow-sm">
+          {watchlist.map((item) => (
+            <Col key={item.id} xs={6} sm={4} md={3} className="mb-4">
+              <Card className="h-100">
                 <Card.Img
                   variant="top"
                   src={item.img}
-                  style={{ height: "300px", objectFit: "cover" }}
+                  style={{ height: "160px", objectFit: "cover" }}
                 />
                 <Card.Body>
-                  <Card.Title style={{ fontSize: "1rem" }}>
-                    {item.title}
-                  </Card.Title>
-                  <div className="progress mb-2" style={{ height: "6px" }}>
-                    <div
-                      className="progress-bar"
-                      role="progressbar"
-                      style={{ width: `${item.progress}%` }}
-                      aria-valuenow={item.progress}
-                      aria-valuemin="0"
-                      aria-valuemax="100"
-                    ></div>
+                  <Card.Title className="h6 mb-2">{item.title}</Card.Title>
+                  <Card.Text className="text-muted mb-3">{item.type}</Card.Text>
+                  <div className="d-flex justify-content-between">
+                    <Button size="sm" variant="dark">
+                      <FaPlay /> Play
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      onClick={() => handleRemoveWatchlist(item.id)}
+                    >
+                      Remove
+                    </Button>
                   </div>
-                  <Button size="sm" variant="primary">
-                    <FaPlay /> Resume
-                  </Button>
                 </Card.Body>
               </Card>
             </Col>
@@ -415,74 +521,241 @@ const UserProfilePage = ({ show, onHide }) => {
         </Row>
       </Card>
 
-      {/* Settings & Preferences */}
+      {/* Continue Watching Section */}
       <Card className="mb-4 shadow-sm p-3">
-        <Card.Title>Settings & Preferences</Card.Title>
-        <Form className="mt-3">
-          <Row>
-            <Col md={6}>
-              <Form.Group className="mb-3">
-                <Form.Label>Streaming Quality</Form.Label>
-                <Form.Select>
-                  <option>Auto</option>
-                  <option>HD</option>
-                  <option>4K</option>
-                </Form.Select>
-              </Form.Group>
-            </Col>
-            <Col md={6}>
-              <Form.Group className="mb-3">
-                <Form.Label>Language</Form.Label>
-                <Form.Select>
-                  <option>English</option>
-                  <option>Hindi</option>
-                  <option>Spanish</option>
-                </Form.Select>
-              </Form.Group>
-            </Col>
-          </Row>
-          <Row>
-            <Col md={6}>
-              <Form.Check
-                type="switch"
-                id="autoplay"
-                label="Autoplay Next Episode"
-              />
-            </Col>
-            <Col md={6}>
-              <Form.Check
-                type="switch"
-                id="notifications"
-                label="Receive Notifications"
-              />
-            </Col>
-          </Row>
-          <Button variant="success" className="mt-3">
-            Save Preferences
-          </Button>
-        </Form>
+        <Card.Title>Continue Watching</Card.Title>
+        <Carousel className="mt-3">
+          {continueWatching.map((cw) => (
+            <Carousel.Item key={cw.id}>
+              <Row className="align-items-center">
+                <Col md={3}>
+                  <img
+                    src={cw.img}
+                    alt={cw.title}
+                    className="w-100"
+                    style={{ height: "160px", objectFit: "cover" }}
+                  />
+                </Col>
+                <Col md={9}>
+                  <h5 className="mb-2">{cw.title}</h5>
+                  <div className="progress" style={{ height: "8px" }}>
+                    <div
+                      className="progress-bar bg-dark"
+                      role="progressbar"
+                      style={{ width: `${cw.progress}%` }}
+                      aria-valuenow={cw.progress}
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                    />
+                  </div>
+                </Col>
+              </Row>
+            </Carousel.Item>
+          ))}
+        </Carousel>
       </Card>
 
-      {/* Advanced Features */}
-      <Card className="mb-4 shadow-sm p-3">
-        <Card.Title>Advanced Features</Card.Title>
-        <ListGroup className="mt-2">
-          <ListGroup.Item>AI Recommendations</ListGroup.Item>
-          <ListGroup.Item>Download Management</ListGroup.Item>
-          <ListGroup.Item>Device Management</ListGroup.Item>
-          <ListGroup.Item>Parental Controls / PIN Settings</ListGroup.Item>
-          <ListGroup.Item>Gift Subscriptions</ListGroup.Item>
-          <ListGroup.Item>Cross-Platform Sync</ListGroup.Item>
-          <ListGroup.Item>Watch Party / Social Share</ListGroup.Item>
-          <ListGroup.Item>Multiple Profiles per Account</ListGroup.Item>
-        </ListGroup>
-      </Card>
+      {/* Upgrade Plan Modal */}
+      <Modal
+        show={showUpgradeModal}
+        onHide={() => setShowUpgradeModal(false)}
+        centered
+        size="lg"
+      >
+        <div className="bg-dark text-light rounded">
+          <Modal.Header closeButton className="border-0">
+            <Modal.Title className="text-white">Choose Your Plan</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Row className="g-3">
+              <Col md={4}>
+                <div className="border rounded p-3 h-100 bg-light text-dark">
+                  <h5 className="fw-bold mb-2">Free</h5>
+                  <p className="text-dark fw-bold mb-3">$0 / month</p>
+                  <ul className="list-unstyled text-start mb-3">
+                    <li>Limited content</li>
+                    <li>Ads supported</li>
+                    <li>SD streaming</li>
+                  </ul>
+                  <Button
+                    variant="dark"
+                    className="w-100 fw-bold"
+                    onClick={() => handleSaveUpgrade("Free")}
+                  >
+                    Stay on Free
+                  </Button>
+                </div>
+              </Col>
+              <Col md={4}>
+                <div className="border rounded p-3 h-100 bg-light text-dark">
+                  <h5 className="fw-bold mb-2">Standard</h5>
+                  <p className="text-dark fw-bold mb-3">$8 / month</p>
+                  <ul className="list-unstyled text-start mb-3">
+                    <li>Most content</li>
+                    <li>Fewer ads</li>
+                    <li>HD streaming</li>
+                  </ul>
+                  <Button
+                    variant="dark"
+                    className="w-100 fw-bold"
+                    onClick={() => handleSaveUpgrade("Standard")}
+                  >
+                    Upgrade Now
+                  </Button>
+                </div>
+              </Col>
+              <Col md={4}>
+                <div className="border rounded p-3 h-100 bg-light text-dark w-100">
+                  <h5 className="fw-bold mb-2">Premium</h5>
+                  <p className="text-dark fw-bold mb-3">$15 / month</p>
+                  <ul className="list-unstyled text-start mb-3">
+                    <li>All content unlocked</li>
+                    <li>Ad-free experience</li>
+                    <li>HD & 4K Streaming</li>
+                    <li>Offline downloads</li>
+                    <li>Early access to new shows</li>
+                  </ul>
+                  <div className="fw-bold mb-2 text-dark">
+                    Best for binge-watchers
+                  </div>
+                  <Button
+                    variant="dark"
+                    className="w-100 fw-bold "
+                    onClick={() => handleSaveUpgrade("Premium")}
+                  >
+                    Upgrade Now
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+            <p className="text-center text-muted mt-4 small">
+              Cancel anytime. All plans auto-renew monthly. Taxes may apply.
+            </p>
+          </Modal.Body>
+        </div>
+      </Modal>
 
-      {/* Profile Modal (Add/Edit) */}
-      <Modal show={showProfileModal} onHide={() => setShowProfileModal(false)}>
-        <Modal.Header closeButton>
+      {/* Settings & Help Modal */}
+      <Modal
+        show={showSettingsModal}
+        onHide={() => setShowSettingsModal(false)}
+        centered
+        size="xl"
+        dialogClassName="custom-modal"
+      >
+        <Modal.Header closeButton className="border-0">
+          <Modal.Title className="text-white">
+            Settings & Preferences
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="bg-dark text-light p-4">
+          <Form>
+            {/* Streaming Quality */}
+            <Form.Group className="mb-3">
+              <Form.Label>Streaming Quality</Form.Label>
+              <Form.Select
+                value={streamingQuality}
+                onChange={(e) => setStreamingQuality(e.target.value)}
+              >
+                <option value="auto">Auto</option>
+                <option value="sd">SD</option>
+                <option value="hd">HD</option>
+                <option value="uhd">UHD (4K)</option>
+              </Form.Select>
+            </Form.Group>
+
+            {/* Autoplay Next */}
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="checkbox"
+                label="Autoplay next episode"
+                checked={autoplayNext}
+                onChange={(e) => setAutoplayNext(e.target.checked)}
+              />
+            </Form.Group>
+
+            {/* Download Quality */}
+            <Form.Group className="mb-3">
+              <Form.Label>Download Quality</Form.Label>
+              <Form.Select
+                value={downloadQuality}
+                onChange={(e) => setDownloadQuality(e.target.value)}
+              >
+                <option value="standard">Standard</option>
+                <option value="high">High</option>
+              </Form.Select>
+            </Form.Group>
+
+            {/* Notifications */}
+            <Form.Group className="mb-3">
+              <Form.Label>Notifications</Form.Label>
+              <div className="d-flex gap-3">
+                <Form.Check
+                  type="checkbox"
+                  label="Email"
+                  checked={emailNotifications}
+                  onChange={(e) => setEmailNotifications(e.target.checked)}
+                />
+                <Form.Check
+                  type="checkbox"
+                  label="Push"
+                  checked={pushNotifications}
+                  onChange={(e) => setPushNotifications(e.target.checked)}
+                />
+              </div>
+            </Form.Group>
+
+            {/* Content Restrictions */}
+            <Form.Group className="mb-3">
+              <Form.Label>Content Restrictions</Form.Label>
+              <div className="d-flex gap-3">
+                <Form.Check
+                  type="checkbox"
+                  label="Violence"
+                  checked={contentRestrictions.violence}
+                  onChange={(e) =>
+                    setContentRestrictions((c) => ({
+                      ...c,
+                      violence: e.target.checked,
+                    }))
+                  }
+                />
+                <Form.Check
+                  type="checkbox"
+                  label="Adult"
+                  checked={contentRestrictions.adult}
+                  onChange={(e) =>
+                    setContentRestrictions((c) => ({
+                      ...c,
+                      adult: e.target.checked,
+                    }))
+                  }
+                />
+              </div>
+            </Form.Group>
+
+            <div className="text-end">
+              <Button
+                variant="warning"
+                className="text-dark"
+                onClick={() => setShowSettingsModal(false)}
+              >
+                Save Preferences
+              </Button>
+            </div>
+          </Form>
+        </Modal.Body>
+      </Modal>
+
+      {/* Add/Edit Profile Modal */}
+      <Modal
+        show={showProfileModal}
+        onHide={() => setShowProfileModal(false)}
+        centered
+      >
+        <Modal.Header closeButton className="border-0">
           <Modal.Title>
-            {isAddMode ? "Add New Profile" : "Edit Profile"}
+            {isAddMode ? "Add Profile" : "Edit Profile"}
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
@@ -609,367 +882,31 @@ const UserProfilePage = ({ show, onHide }) => {
         </Modal.Body>
       </Modal>
 
-      {/* Upgrade Plan Modal */}
-      <Modal
-        show={showUpgradeModal}
-        onHide={() => setShowUpgradeModal(false)}
-        centered
-        size="xl"
-        className="upgrade-modal p-0 "
-      >
-        <div className="d-flex flex-column flex-lg-row">
-          {/* ---------- Left Side ---------- */}
-          <div className="company-side d-none d-lg-flex flex-column justify-content-center align-items-center text-white p-5 overflow-hidden">
-            <div className="scrolling-bg ">
-              <img
-                src="https://wallpapercave.com/wp/wp1945909.jpg"
-                alt="Scrolling Background"
-                className="scrolling-img"
-              />
-              <img
-                src="https://wallpapercave.com/wp/wp1945909.jpg"
-                alt="Scrolling Background"
-                className="scrolling-img"
-              />
-            </div>
-            {/* Overlay content */}
-            <div
-              className="position-absolute top-50 start-50 translate-middle text-center text-white shadow p-4 rounded w-75"
-              style={{
-                background: "rgba(24, 24, 24, 0.5)", // semi-transparent black background
-                backdropFilter: "blur(4px)", // optional blur effect
-              }}
-            >
-              <h2 className="fw-bold mb-3 fs-1">BBS NEO</h2>
-              <p className="mb-4 fw-bold fs-5">
-                Enjoy unlimited access to all our premium content. Stream
-                anytime, anywhere, ad-free.
-              </p>
-            </div>
-          </div>
-
-          {/* ---------- Right Side: Plans ---------- */}
-          <div className="flex-1 p-4 bg-white">
-            <Modal.Header closeButton className="border-0">
-              <Modal.Title className="text-dark fw-bold">
-                Choose Your Plan
-              </Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              {/* Plan cards */}
-              <div className="d-flex flex-column flex-md-row justify-content-around gap-3">
-                {/* Super */}
-                <div className="plan-card border rounded-lg p-4 w-100 text-center hover-shadow bg-light d-flex flex-column justify-content-between align-items-center">
-                  <h5 className="fw-bold mb-2">Super</h5>
-                  <p className="text-muted mb-3">$5 / month</p>
-                  <ul className=" text-start mb-3 d-flex flex-column gap-2 align-items-start">
-                    <li>Limited content access</li>
-                    <li>Ads included</li>
-                    <li>SD streaming</li>
-                  </ul>
-                  <div className="fw-bold mb-2 text-primary">
-                    Best for casual viewers
-                  </div>
-                  <Button
-                    variant="outline-primary"
-                    className="w-100"
-                    onClick={() => handleSaveUpgrade("Super")}
-                  >
-                    Select
-                  </Button>
-                </div>
-
-                {/* Super+ Ads Free */}
-                <div className="plan-card border rounded-lg p-4 text-center flex-1 hover-shadow bg-info-subtle w-100 d-flex flex-column justify-content-between align-items-center">
-                  <h5 className="fw-bold mb-2">Super+ Ads Free</h5>
-                  <p className="text-muted mb-3">$10 / month</p>
-                  <ul className="text-start mb-3">
-                    <li>Most content access</li>
-                    <li>Ads-free experience</li>
-                    <li>HD streaming</li>
-                    <li>Limited offline downloads</li>
-                  </ul>
-                  <div className="fw-bold mb-2 text-primary">
-                    Enjoy uninterrupted content
-                  </div>
-                  <Button
-                    variant="info"
-                    className="w-100 fw-bold"
-                    onClick={() => handleSaveUpgrade("Super+")}
-                  >
-                    Select
-                  </Button>
-                </div>
-
-                {/* Premium */}
-                <div className="plan-card border border-warning rounded-lg p-4 text-center  bg-warning-subtle hover-shadow d-flex flex-column justify-content-between align-items-center w-100">
-                  <h5 className="fw-bold mb-2">Premium</h5>
-                  <p className="text-dark fw-bold mb-3">$15 / month</p>
-                  <ul className="list-unstyled text-start mb-3">
-                    <li>All content unlocked</li>
-                    <li>Ad-free experience</li>
-                    <li>HD & 4K Streaming</li>
-                    <li>Offline downloads</li>
-                    <li>Early access to new shows</li>
-                  </ul>
-                  <div className="fw-bold mb-2 text-dark">
-                    Best for binge-watchers
-                  </div>
-                  <Button
-                    variant="dark"
-                    className="w-100 fw-bold "
-                    onClick={() => handleSaveUpgrade("Premium")}
-                  >
-                    Upgrade Now
-                  </Button>
-                </div>
-              </div>
-
-              <p className="text-center text-muted mt-4 small">
-                Cancel anytime. All plans auto-renew monthly. Taxes may apply.
-              </p>
-            </Modal.Body>
-          </div>
-        </div>
-      </Modal>
-
-      {/* settigs and help modal */}
-      <Modal
-        show={showSettingsModal}
-        onHide={() => setShowSettingsModal(false)}
-        centered
-        size="xl"
-        dialogClassName="custom-modal"
-      >
-        <Modal.Header closeButton className="border-0">
-          <Modal.Title className="text-white">
-            Settings & Preferences
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="bg-dark text-light p-4">
-          <Form>
-            {/* Streaming Quality */}
-            <Form.Group className="mb-3">
-              <Form.Label>Streaming Quality</Form.Label>
-              <Form.Select
-                value={streamingQuality}
-                onChange={(e) => setStreamingQuality(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                <option>Auto</option>
-                <option>HD</option>
-                <option>4K</option>
-                <option>SD</option>
-              </Form.Select>
-            </Form.Group>
-
-            {/* Language */}
-            <Form.Group className="mb-3">
-              <Form.Label>Language</Form.Label>
-              <Form.Select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                <option>English</option>
-                <option>Hindi</option>
-                <option>Spanish</option>
-                <option>French</option>
-                <option>German</option>
-              </Form.Select>
-            </Form.Group>
-
-            {/* Autoplay & Notifications */}
-            <Form.Check
-              type="switch"
-              label="Autoplay Next Episode"
-              checked={autoplay}
-              onChange={() => setAutoplay(!autoplay)}
-              className="mb-2"
-            />
-            <Form.Check
-              type="switch"
-              label="Receive Notifications"
-              checked={notifications}
-              onChange={() => setNotifications(!notifications)}
-              className="mb-3"
-            />
-
-            {/* Subtitles */}
-            <Form.Group className="mb-3">
-              <Form.Label>Subtitles / Captions</Form.Label>
-              <Form.Select
-                value={subtitles}
-                onChange={(e) => setSubtitles(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                <option>Off</option>
-                <option>English</option>
-                <option>Hindi</option>
-                <option>Spanish</option>
-              </Form.Select>
-            </Form.Group>
-
-            {/* Data Saver */}
-            <Form.Check
-              type="switch"
-              label="Enable Data Saver Mode (low bandwidth streaming)"
-              checked={dataSaver}
-              onChange={() => setDataSaver(!dataSaver)}
-              className="mb-3"
-            />
-
-            {/* Parental Control */}
-            <Form.Group className="mb-3">
-              <Form.Label>Parental Control PIN</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Set 4-digit PIN"
-                maxLength={4}
-                value={parentalPin}
-                onChange={(e) => setParentalPin(e.target.value)}
-                className="bg-secondary text-white border-0"
-              />
-              <Form.Text className="text-muted">
-                Required to access mature content or modify kids profiles.
-              </Form.Text>
-            </Form.Group>
-
-            {/* Download Quality */}
-            <Form.Group className="mb-3">
-              <Form.Label>Download Quality</Form.Label>
-              <Form.Select
-                value={downloadQuality}
-                onChange={(e) => setDownloadQuality(e.target.value)}
-                className="bg-secondary text-white border-0"
-              >
-                <option>Standard</option>
-                <option>High</option>
-                <option>HD</option>
-              </Form.Select>
-            </Form.Group>
-
-            {/* Device Management */}
-            <Form.Group className="mb-3">
-              <Form.Label>Manage Devices</Form.Label>
-              <ListGroup className="bg-secondary text-white border-0 rounded">
-                {devices.map((device) => (
-                  <ListGroup.Item
-                    key={device.id}
-                    className="d-flex justify-content-between align-items-center bg-secondary text-white border-0"
-                  >
-                    <span>
-                      {device.name} - Last active: {device.lastActive}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => handleRemoveDevice(device.id)}
-                    >
-                      Remove
-                    </Button>
-                  </ListGroup.Item>
-                ))}
-              </ListGroup>
-            </Form.Group>
-
-            {/* Save / Cancel */}
-            <div className="d-flex justify-content-end mt-4">
-              <Button
-                variant="outline-light"
-                onClick={() => setShowSettingsModal(false)}
-                className="me-2"
-              >
-                Cancel
-              </Button>
-              <Button variant="success" onClick={handleSaveSettings}>
-                Save Settings
-              </Button>
-            </div>
-          </Form>
-        </Modal.Body>
-      </Modal>
-
       {/* Kids PIN Modal */}
       <Modal show={showPinModal} onHide={() => setShowPinModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Enter PIN for {selectedProfile?.name}</Modal.Title>
+          <Modal.Title>Enter PIN</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form>
-            <Form.Group>
-              <Form.Control
-                type="password"
-                placeholder="Enter 4-digit PIN"
-                maxLength={4}
-                value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
-              />
-            </Form.Group>
-            <div className="d-flex justify-content-end mt-3 gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setShowPinModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={handleVerifyPin}>
-                Submit
-              </Button>
-            </div>
-          </Form>
+          <Form.Group>
+            <Form.Control
+              type="password"
+              maxLength={4}
+              placeholder="Enter 4-digit PIN"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+            />
+          </Form.Group>
         </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowPinModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleVerifyPin}>
+            Verify
+          </Button>
+        </Modal.Footer>
       </Modal>
-
-      <style>
-        {`
-        .company-side {
-  width: 50%;
-  height: 7;
-  position: relative;
-}
-
-.scrolling-bg {
-  position: absolute;
-  width: 100%;
-  height: 200%;
-  top: 0;
-  left: 0;
-  display: flex;
-  flex-direction: column;
-}
- .custom-modal .modal-content {
-    background-color: #1c1c1c;
-    border-radius: 12px;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
-  }
-  .custom-modal .form-select,
-  .custom-modal .form-control {
-    transition: all 0.2s;
-  }
-  .custom-modal .form-select:focus,
-  .custom-modal .form-control:focus {
-    box-shadow: none;
-    border-color: #0d6efd;
-  }
-.scrolling-img {
-  width: 100%;
-  height: 50%;
-  object-fit: cover;
-  animation: scroll 10s linear infinite;
-}
-
-@keyframes scroll {
-  0% {
-    transform: translateY(0%);
-  }
-  100% {
-    transform: translateY(-50%);
-  }
-}
-
-        `}
-      </style>
     </Container>
   );
 };

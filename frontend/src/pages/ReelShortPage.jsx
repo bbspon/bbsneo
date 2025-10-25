@@ -1,500 +1,391 @@
 // ReelShortPage.jsx
-import React, { useState, useRef, useEffect } from "react";
-import {
-  Container,
-  Button,
-  Badge,
-  Modal,
-  Form,
-  Tooltip,
-  OverlayTrigger,
-} from "react-bootstrap";
+import React, { useEffect, useRef, useState } from "react";
+import axios from "axios";
 import {
   FaHeart,
   FaComment,
   FaShare,
-  FaPlay,
-  FaPause,
-  FaWhatsapp,
-  FaInstagram,
-  FaLink,
-  FaReply,
-  FaFacebook,
-  FaTwitter,
-  FaEnvelope,
+  FaVolumeUp,
+  FaVolumeMute,
+  FaChevronUp,
+  FaChevronDown,
 } from "react-icons/fa";
-import "bootstrap/dist/css/bootstrap.min.css";
-import { IoMdArrowDroprightCircle } from "react-icons/io";
-import { IoMdArrowDropleftCircle } from "react-icons/io";
 
-const demoReelsData = [
-  {
-    id: "r1",
-    title: "Amazing Nature",
-    description: "Relaxing nature reel 🌲 #nature #relax",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    likes: 120,
-    comments: [
-      { user: "Alice", text: "Beautiful scenery!", likes: 3, replies: [] },
-      { user: "Bob", text: "So relaxing 😍", likes: 2, replies: [] },
-    ],
-    shares: 5,
-    creator: "NatureLover",
-  },
-  {
-    id: "r2",
-    title: "Funny Cat",
-    description: "Hilarious cat video 🐱 #funny #cat",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    likes: 300,
-    comments: [],
-    shares: 20,
-    creator: "CatWorld",
-  },
-  {
-    id: "r3",
-    title: "Travel Vlog",
-    description: "Exploring the mountains 🏔️ #travel #vlog",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    likes: 220,
-    comments: [],
-    shares: 15,
-    creator: "TravelGuy",
-  },
-];
+// ======================
+// Config
+// ======================
+const API_BASE = "http://127.0.0.1:3107"; // OTT service
+const PLACEHOLDER_VIDEO = "https://www.w3schools.com/html/mov_bbb.mp4";
 
-export default function ReelShortPage() {
+// Optional: if you store a JWT
+const authHeader = () => {
+  const t = localStorage.getItem("bbsneo_token");
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+
+const ReelShortPage = () => {
+  const [reels, setReels] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [reels, setReels] = useState(demoReelsData);
   const [liked, setLiked] = useState(false);
-  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [commentText, setCommentText] = useState("");
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [openReplyIndex, setOpenReplyIndex] = useState(null);
 
-  const reelRefs = useRef([]);
-  const currentUser = "You";
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
 
-  const togglePlayPause = () => {
-    const video = reelRefs.current[currentIndex];
-    if (!video) return;
-    if (isPlaying) video.pause();
-    else video.play();
-    setIsPlaying(!isPlaying);
-  };
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % reels.length);
-    setIsPlaying(true);
+    const fetchReels = async () => {
+      try {
+        const { data } = await axios.get(`${API_BASE}/reels?limit=20`, {
+          headers: { ...authHeader() },
+        });
+
+        if (cancelled) return;
+
+        const list = Array.isArray(data) ? data : [];
+        const mapped = list.map((r) => ({
+          id: r._id,
+          title: r.title || "Untitled",
+          description: r.description || "",
+          src: r.src || PLACEHOLDER_VIDEO,
+          creator: r.creator || "Creator",
+          likes: typeof r.likes === "number" ? r.likes : 0,
+          shares: typeof r.shares === "number" ? r.shares : 0,
+          comments: Array.isArray(r.comments) ? r.comments : [],
+        }));
+
+        // Only override demo data if API returned at least one item
+        if (mapped.length > 0) setReels(mapped);
+      } catch {
+        // Keep demo silently on any error
+      }
+    };
+
+    fetchReels();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Auto play/pause when index changes
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = muted;
+    v.currentTime = 0;
+    v.play().catch(() => {});
+  }, [currentIndex, muted]);
+
+  // Simple scroll navigation (wheel up/down)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.deltaY > 0) nextReel();
+      else prevReel();
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [currentIndex, reels.length]);
+
+  const nextReel = () => {
+    setCurrentIndex((i) => (i + 1 < reels.length ? i + 1 : i));
     setLiked(false);
-    setShowCommentBox(false);
-    setOpenReplyIndex(null);
   };
-
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev - 1 + reels.length) % reels.length);
-    setIsPlaying(true);
+  const prevReel = () => {
+    setCurrentIndex((i) => (i - 1 >= 0 ? i - 1 : i));
     setLiked(false);
-    setShowCommentBox(false);
-    setOpenReplyIndex(null);
   };
 
-  const handleLike = () => {
-    const updatedReels = [...reels];
-    if (!liked) updatedReels[currentIndex].likes += 1;
-    else updatedReels[currentIndex].likes -= 1;
-    setReels(updatedReels);
-    setLiked(!liked);
+  const current = reels[currentIndex] || {};
+
+  // ======================
+  // Actions (optimistic)
+  // ======================
+  const handleToggleMute = () => setMuted((m) => !m);
+
+  const handleLike = async () => {
+    if (!current.id) return;
+
+    // compute next state to avoid stale reads
+    const nextLiked = !liked;
+
+    // optimistic
+    setLiked(nextLiked);
+    setReels((prev) => {
+      const copy = [...prev];
+      const r = { ...(copy[currentIndex] || {}) };
+      r.likes = Math.max(0, (r.likes || 0) + (nextLiked ? 1 : -1));
+      copy[currentIndex] = r;
+      return copy;
+    });
+
+    try {
+      const url = `${API_BASE}/reels/${current.id}/${
+        nextLiked ? "like" : "unlike"
+      }`;
+      await axios.post(url, {}, { headers: { ...authHeader() } });
+    } catch {
+      // rollback
+      setLiked(!nextLiked);
+      setReels((prev) => {
+        const copy = [...prev];
+        const r = { ...(copy[currentIndex] || {}) };
+        r.likes = Math.max(0, (r.likes || 0) + (nextLiked ? -1 : 1));
+        copy[currentIndex] = r;
+        return copy;
+      });
+    }
   };
 
-  const handleAddComment = (e) => {
+  const handleAddComment = async (e) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
-    const updatedReels = [...reels];
-    updatedReels[currentIndex].comments.push({
-      user: currentUser,
+    if (!commentText.trim() || !current.id) return;
+
+    const draft = {
+      user: "You",
       text: commentText.trim(),
       likes: 0,
       replies: [],
+    };
+
+    // optimistic
+    setReels((prev) => {
+      const copy = [...prev];
+      const r = { ...(copy[currentIndex] || {}) };
+      r.comments = Array.isArray(r.comments) ? r.comments.slice() : [];
+      r.comments.push(draft);
+      copy[currentIndex] = r;
+      return copy;
     });
-    setReels(updatedReels);
     setCommentText("");
-  };
 
-  const handleAddReply = (commentIndex, replyText) => {
-    if (!replyText.trim()) return;
-    const updatedReels = [...reels];
-    updatedReels[currentIndex].comments[commentIndex].replies.push({
-      user: currentUser,
-      text: replyText.trim(),
-      likes: 0,
-    });
-    setReels(updatedReels);
-  };
-
-  const toggleCommentLike = (commentIndex, replyIndex = null) => {
-    const updatedReels = [...reels];
-    if (replyIndex === null) {
-      updatedReels[currentIndex].comments[commentIndex].likes += 1;
-    } else {
-      updatedReels[currentIndex].comments[commentIndex].replies[
-        replyIndex
-      ].likes += 1;
+    try {
+      await axios.post(`${API_BASE}/reels/${current.id}/comments`, draft, {
+        headers: { "Content-Type": "application/json", ...authHeader() },
+      });
+    } catch {
+      // ignore; UI already shows comment
     }
-    setReels(updatedReels);
   };
 
-  // Share Function
-  const reelLink = window.location.href;
+  const handleShare = async () => {
+    if (!current.id) return;
 
-  const handleShare = (platform) => {
-    switch (platform) {
-      case "whatsapp":
-        window.open(
-          `https://wa.me/?text=${encodeURIComponent(reelLink)}`,
-          "_blank"
-        );
-        break;
-      case "instagram":
-        window.open(
-          `instagram://share?text=${encodeURIComponent(reelLink)}`,
-          "_blank"
-        );
-        break;
-
-      case "facebook":
-        window.open(
-          `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-            reelLink
-          )}`,
-          "_blank"
-        );
-        break;
-      case "twitter":
-        window.open(
-          `https://twitter.com/intent/tweet?url=${encodeURIComponent(
-            reelLink
-          )}&text=Check this out!`,
-          "_blank"
-        );
-        break;
-      case "email":
-        window.location.href = `mailto:?subject=Check this Reel&body=${encodeURIComponent(
-          reelLink
-        )}`;
-        break;
-      case "link":
-        navigator.clipboard.writeText(reelLink).then(() => {
-          alert("✅ Link copied to clipboard!");
-        });
-        break;
-      default:
-        break;
-    }
-    setShowShareModal(false);
-  };
-
-  useEffect(() => {
-    reelRefs.current.forEach((v, i) => {
-      if (v) {
-        if (i === currentIndex && isPlaying) v.play();
-        else v.pause();
-      }
+    // optimistic bump
+    setReels((prev) => {
+      const copy = [...prev];
+      const r = { ...(copy[currentIndex] || {}) };
+      r.shares = (r.shares || 0) + 1;
+      copy[currentIndex] = r;
+      return copy;
     });
-  }, [currentIndex, isPlaying]);
 
+    try {
+      await axios.post(
+        `${API_BASE}/reels/${current.id}/share`,
+        {},
+        { headers: { ...authHeader() } }
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  // ======================
+  // UI
+  // ======================
   return (
-    <Container
-      fluid
-      className="p-0"
-      style={{ height: "100vh", overflow: "hidden", background: "black" }}
+    <div
+      ref={containerRef}
+      style={{
+        backgroundColor: "#111",
+        color: "#fff",
+        minHeight: "100vh",
+        width: "100%",
+        position: "relative",
+        overflow: "hidden",
+      }}
     >
-      <div className="position-relative w-100 h-100">
-        {/* Videos */}
-        {reels.map((reel, idx) => (
-          <video
-            key={reel.id}
-            ref={(el) => (reelRefs.current[idx] = el)}
-            src={reel.src}
-            className={`w-100 h-100 position-absolute top-0 start-0 ${
-              idx === currentIndex ? "d-block" : "d-none"
-            }`}
-            style={{ objectFit: "cover" }}
-            loop
-            muted
-            playsInline
-          />
-        ))}
+      {/* Video area */}
+      <div
+        style={{
+          position: "relative",
+          height: "100vh",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <video
+          ref={videoRef}
+          src={current.src || PLACEHOLDER_VIDEO}
+          style={{ maxHeight: "100vh", maxWidth: "100vw", objectFit: "cover" }}
+          loop
+          muted={muted}
+          playsInline
+          controls={false}
+          onError={(e) => {
+            // fallback if bad URL
+            e.currentTarget.src = PLACEHOLDER_VIDEO;
+            e.currentTarget.play().catch(() => {});
+          }}
+          autoPlay
+        />
 
-        {/* Overlay Info */}
+        {/* Left bottom: title and description */}
         <div
-          className="position-absolute bottom-0 start-0 text-white p-3"
-          style={{ width: "65%", textShadow: "0 0 5px black" }}
+          style={{
+            position: "absolute",
+            left: 16,
+            bottom: 20,
+            right: 80,
+            pointerEvents: "none",
+          }}
         >
-          <h5>{reels[currentIndex].title}</h5>
-          <p style={{ margin: 0 }}>{reels[currentIndex].description}</p>
-          <p style={{ margin: 0 }}>
-            Creator: <strong>{reels[currentIndex].creator}</strong>
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div
-          className="position-absolute d-flex flex-column align-items-center text-white"
-          style={{ right: "20px", bottom: "120px" }}
-        >
-          <Button
-            variant="link"
-            className="text-white mb-3 d-flex flex-column align-items-center"
-            onClick={handleLike}
-          >
-            <FaHeart size={28} color={liked ? "red" : "white"} />
-            <Badge bg="danger" pill>
-              {reels[currentIndex].likes}
-            </Badge>
-          </Button>
-
-          <Button
-            variant="link"
-            className="text-white mb-3 d-flex flex-column align-items-center"
-            onClick={() => setShowCommentBox((s) => !s)}
-          >
-            <FaComment size={28} />
-            <Badge bg="info" pill>
-              {reels[currentIndex].comments.length}
-            </Badge>
-          </Button>
-
-          <Button
-            variant="link"
-            className="text-white mb-3 d-flex flex-column align-items-center"
-            onClick={() => setShowShareModal(true)}
-          >
-            <FaShare size={28} />
-            <Badge bg="secondary" pill>
-              {reels[currentIndex].shares}
-            </Badge>
-          </Button>
-
-          <Button
-            variant="none"
-            className=" mt-3 "
-            onClick={togglePlayPause}
-          >
-            {isPlaying ? <FaPause size={25} /> : <FaPlay  size={25}/>}
-          </Button>
-        </div>
-
-        {/* Comment Section */}
-        {showCommentBox && (
-          <div
-            className="position-absolute start-0 bottom-0 w-50 bg-dark bg-opacity-75 p-3"
-            style={{ maxHeight: "50%", overflowY: "auto" }}
-          >
-            <Form onSubmit={handleAddComment} className="d-flex mb-2">
-              <Form.Control
-                placeholder="Add a comment..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-              />
-              <Button type="submit" variant="primary" className="ms-2">
-                Send
-              </Button>
-            </Form>
-
-            {reels[currentIndex].comments.map((c, ci) => (
-              <div key={ci} className="mb-2">
-                <div className="d-flex align-items-center justify-content-between">
-                  <strong className="text-white">{c.user}</strong>
-                  <div>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="text-white p-0 me-2 text-decoration-none"
-                      onClick={() => toggleCommentLike(ci)}
-                    >
-                      <FaHeart /> {c.likes}
-                    </Button>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="text-white p-0 text-decoration-none"
-                      onClick={() =>
-                        setOpenReplyIndex(openReplyIndex === ci ? null : ci)
-                      }
-                    >
-                      <FaReply />
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-white mb-1">{c.text}</p>
-
-                {c.replies.map((r, ri) => (
-                  <div key={ri} className="ms-3 mb-1">
-                    <div className="d-flex align-items-center justify-content-between">
-                      <strong className="text-white">{r.user}</strong>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="text-white p-0 text-decoration-none"
-                        onClick={() => toggleCommentLike(ci, ri)}
-                      >
-                        <FaHeart /> {r.likes}
-                      </Button>
-                    </div>
-                    <p className="text-white mb-0">{r.text}</p>
-                  </div>
-                ))}
-
-                {openReplyIndex === ci && (
-                  <Form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAddReply(ci, e.target[0].value);
-                      e.target[0].value = "";
-                      setOpenReplyIndex(null);
-                    }}
-                    className="d-flex mt-1"
-                  >
-                    <Form.Control placeholder="Reply..." />
-                    <Button type="submit" variant="secondary" className="ms-2">
-                      Reply
-                    </Button>
-                  </Form>
-                )}
-              </div>
-            ))}
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+            {current.title || "Reel"}
           </div>
-        )}
+          <div style={{ opacity: 0.9, marginBottom: 8 }}>
+            @{current.creator || "creator"}
+          </div>
+          <div style={{ opacity: 0.8 }}>{current.description || ""}</div>
+        </div>
 
-        {/* Navigation */}
-        <Button
-          variant="none"
-          className="position-absolute top-50 start-0 translate-middle-y rounded-circle"
-          style={{ opacity: 0.7 }}
-          onClick={handlePrev}
+        {/* Right: action buttons */}
+        <div
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            alignItems: "center",
+          }}
         >
-          <IoMdArrowDropleftCircle className="text-white" size={40}/>
-        </Button>
-        <Button
-          variant="none"
-          className="position-absolute top-50 end-0 translate-middle-y rounded-circle"
-          style={{ opacity: 0.7 }}
-          onClick={handleNext}
-        >
-          <IoMdArrowDroprightCircle className="text-white" size={40} />
-        </Button>
+          <button
+            onClick={handleToggleMute}
+            style={btnStyle}
+            title={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <FaVolumeMute /> : <FaVolumeUp />}
+          </button>
 
-        {/* Share Modal */}
-        <Modal
-          show={showShareModal}
-          onHide={() => setShowShareModal(false)}
-          centered
-        >
-          <Modal.Header closeButton className="bg-dark text-white">
-            <Modal.Title>Share this Reel</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            <div className="d-flex flex-wrap gap-2">
-              <OverlayTrigger
-                overlay={<Tooltip>Share on WhatsApp</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="success"
-                  className="d-flex flex-column align-items-center p-3"
-                  onClick={() => handleShare("whatsapp")}
-                >
-                  <FaWhatsapp size={28} />
-                  <small>WhatsApp</small>
-                </Button>
-              </OverlayTrigger>
+          <button onClick={handleLike} style={btnStyle} title="Like">
+            <FaHeart color={liked ? "#ff3b3b" : "#fff"} />
+          </button>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>{current.likes || 0}</div>
 
-              <OverlayTrigger
-                overlay={<Tooltip>Share on Instagram</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="danger"
-                  className="d-flex flex-column align-items-center p-3"
-                  onClick={() => handleShare("instagram")}
-                >
-                  <FaInstagram size={28} />
-                  <small>Instagram</small>
-                </Button>
-              </OverlayTrigger>
+          <a
+            href="#comments"
+            style={{ ...btnStyle, textDecoration: "none" }}
+            title="Comments"
+          >
+            <FaComment />
+          </a>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>
+            {Array.isArray(current.comments) ? current.comments.length : 0}
+          </div>
 
-              <OverlayTrigger
-                overlay={<Tooltip>Share on Facebook</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="primary"
-                  className="d-flex flex-column align-items-center p-3"
-                  onClick={() => handleShare("facebook")}
-                >
-                  <FaFacebook size={28} />
-                  <small>Facebook</small>
-                </Button>
-              </OverlayTrigger>
+          <button onClick={handleShare} style={btnStyle} title="Share">
+            <FaShare />
+          </button>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>
+            {current.shares || 0}
+          </div>
 
-              <OverlayTrigger
-                overlay={<Tooltip>Share on Twitter (X)</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="info"
-                  className="d-flex flex-column align-items-center p-3 text-white"
-                  onClick={() => handleShare("twitter")}
-                >
-                  <FaTwitter size={28} />
-                  <small>Twitter</small>
-                </Button>
-              </OverlayTrigger>
-
-              <OverlayTrigger
-                overlay={<Tooltip>Share via Email</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="secondary"
-                  className="d-flex flex-column align-items-center p-3"
-                  onClick={() => handleShare("email")}
-                >
-                  <FaEnvelope size={28} />
-                  <small>Email</small>
-                </Button>
-              </OverlayTrigger>
-
-              <OverlayTrigger
-                overlay={<Tooltip>Copy Reel Link</Tooltip>}
-                placement="top"
-              >
-                <Button
-                  variant="dark"
-                  className="d-flex flex-column align-items-center p-3"
-                  onClick={() => handleShare("link")}
-                >
-                  <FaLink size={28} />
-                  <small>Copy Link</small>
-                </Button>
-              </OverlayTrigger>
-            </div>
-          </Modal.Body>
-          <Modal.Footer className="bg-light d-flex justify-content-between">
-            <small className="text-muted">
-              Pro tip: Sharing increases engagement 🚀
-            </small>
-            <Button
-              variant="outline-secondary"
-              onClick={() => setShowShareModal(false)}
-            >
-              Close
-            </Button>
-          </Modal.Footer>
-        </Modal>
+          <button onClick={prevReel} style={btnStyle} title="Previous">
+            <FaChevronUp />
+          </button>
+          <button onClick={nextReel} style={btnStyle} title="Next">
+            <FaChevronDown />
+          </button>
+        </div>
       </div>
-    </Container>
+
+      {/* Comments panel */}
+      <div
+        id="comments"
+        style={{
+          background: "#000",
+          padding: "16px 16px 80px",
+          borderTop: "1px solid #222",
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>Comments</div>
+
+        <form
+          onSubmit={handleAddComment}
+          style={{ display: "flex", gap: 8, marginBottom: 16 }}
+        >
+          <input
+            type="text"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Add a comment..."
+            style={{
+              flex: 1,
+              background: "#111",
+              color: "#fff",
+              border: "1px solid #333",
+              borderRadius: 8,
+              padding: "10px 12px",
+              outline: "none",
+            }}
+          />
+          <button
+            type="submit"
+            style={{
+              background: "#e50914",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Post
+          </button>
+        </form>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {(current.comments || []).map((c, i) => (
+            <div
+              key={i}
+              style={{
+                background: "#111",
+                border: "1px solid #222",
+                borderRadius: 8,
+                padding: "10px 12px",
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{c.user || "User"}</div>
+              <div style={{ opacity: 0.9, marginTop: 4 }}>{c.text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
-}
+};
+
+// small inline button style to match floating icons
+const btnStyle = {
+  background: "rgba(0,0,0,0.6)",
+  color: "#fff",
+  border: "1px solid #333",
+  borderRadius: 24,
+  width: 42,
+  height: 42,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+export default ReelShortPage;

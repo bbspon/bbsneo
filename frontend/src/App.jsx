@@ -139,7 +139,7 @@ function AppLayout() {
         <Route path="/reel-short" element={<ReelShortPage/>} />
         <Route path="/live" element={<LiveTv />} />
         <Route path="/user-profile" element={<UserProfilePage />} />
-        <Route path="categories" element={<CategoriesPageBootstrap />} />
+        <Route path="/categories" element={<CategoriesPageBootstrap />} />
         <Route path="/movie" element={<MoviePlayScreen />} />
          <Route path="/movies" element={<MoviesPage />} />
           <Route path="/downloads" element={<DownloadPage />} />
