@@ -51,7 +51,7 @@ export class UsersService {
 
       // Return safe payload
       return {
-        id: doc._id.toString(),
+        id: doc._id?.toString(),
         fullName: doc.fullName,
         email: doc.email,
         phoneNumber: doc.phoneNumber,
