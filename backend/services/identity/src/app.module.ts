@@ -5,16 +5,30 @@ import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
+    // Load .env globally so process.env.MONGO_URI is available everywhere
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // If Mongoose connection already exists in your app, keep only one forRoot.
-    MongooseModule.forRoot(
-      process.env.MONGO_URI || "mongodb://127.0.0.1:27017/bbsneo_identity",
-      {
-        dbName: "bbsneo_identity",
-        autoIndex: true,
-      }
-    ),
+    // Strongly enforce Mongo URI presence
+    MongooseModule.forRootAsync({
+      useFactory: async () => {
+        const uri = process.env.MONGO_URI;
+
+        if (!uri) {
+          console.error("❌ MONGO_URI is missing in .env file");
+          throw new Error(
+            "MONGO_URI missing. Please check environment variables."
+          );
+        }
+
+        console.log("✅ Connecting to MongoDB Atlas host:", new URL(uri).host);
+
+        return {
+          uri,
+          dbName: "bbsneo_identity",
+          autoIndex: true,
+        };
+      },
+    }),
 
     UsersModule,
   ],
