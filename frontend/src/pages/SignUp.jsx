@@ -58,7 +58,8 @@ const SignUp = () => {
 
     try {
       // ✅ updated API endpoint to match backend
-      const res = await fetch("http://127.0.0.1:3103/signup", {
+      const apiBase = import.meta.env.VITE_IDENTITY_URL;
+      const res = await fetch(`${apiBase}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
