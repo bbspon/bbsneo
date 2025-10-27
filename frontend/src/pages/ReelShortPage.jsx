@@ -14,7 +14,7 @@ import {
 // ======================
 // Config
 // ======================
-const API_BASE = "http://127.0.0.1:3107"; // OTT service
+const API_BASE = "http://127.0.0.1:3104"; // OTT service
 const PLACEHOLDER_VIDEO = "https://www.w3schools.com/html/mov_bbb.mp4";
 
 // Optional: if you store a JWT

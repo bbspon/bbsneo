@@ -10,7 +10,7 @@ function CategoriesPage() {
     (async () => {
       try {
         const res = await fetch(
-          (import.meta?.env?.VITE_OTT_API || "http://127.0.0.1:3107") +
+          (import.meta?.env?.VITE_OTT_API || "http://127.0.0.1:3104") +
             "/categories?format=object"
         );
         if (!res.ok) throw new Error("bad status");

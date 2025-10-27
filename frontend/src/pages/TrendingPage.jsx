@@ -23,7 +23,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
 
 
-const API_BASE = "http://127.0.0.1:3107";
+const API_BASE = "http://127.0.0.1:3104";
 
 
 const TrendingPage = () => {
