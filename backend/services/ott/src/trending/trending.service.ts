@@ -8,11 +8,11 @@ import { CreateTrendingDto } from "./dto/create-trending.dto";
 export class TrendingService {
   constructor(@InjectModel(Trending.name) private model: Model<Trending>) {}
 
-  async findAll(): Promise<Trending[]> {
+  async findAll(): Promise<any[]> {
     return this.model.find().sort({ createdAt: -1 }).lean();
   }
 
-  async findByCategory(category: string): Promise<Trending[]> {
+  async findByCategory(category: string): Promise<any[]> {
     return this.model.find({ category }).sort({ createdAt: -1 }).lean();
   }
 
