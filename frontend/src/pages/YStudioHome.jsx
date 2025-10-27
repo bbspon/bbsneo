@@ -19,8 +19,10 @@ import { HiMiniUserGroup } from "react-icons/hi2";
 import { SiCoinmarketcap, SiEventstore } from "react-icons/si";
 import { FaAdversal } from "react-icons/fa";
 import { SiShortcut } from "react-icons/si";
-import { FaFacebookMessenger } from "react-icons/fa";
+import { FaFacebookMessenger, FaTv } from "react-icons/fa";
 import { FaBusinessTime } from "react-icons/fa6";
+import { PiPopcornDuotone } from "react-icons/pi";
+
 // Dummy video data
 const dummyVideos = [
   {
@@ -80,18 +82,20 @@ const dummyVideos = [
   },
 ];
 
-
 const sidebarItems = [
   { name: "Home", icon: <FaHome />, path: "/home" },
-   { name: "Business Suite", icon: <FaBusinessTime />, path: "/business-suite" },
+  { name: "Search", icon: <FaSearch />, path: "/search-recommendations" },
+  { name: "Movies", icon: <PiPopcornDuotone />, path: "/movies" },
+  { name: "Business Suite", icon: <FaBusinessTime />, path: "/business-suite" },
   { name: "Trending", icon: <FaFire />, path: "/trending" },
+  { name: "Live Tv", icon: <FaTv />, path: "/live" },
   { name: "Meta AI", icon: <TbBrandMetabrainz />, path: "/meta-ai" },
-  { name: "Groups", icon:  <HiMiniUserGroup />, path: "/groups" },
+  { name: "Groups", icon: <HiMiniUserGroup />, path: "/groups" },
   { name: "Marketplace", icon: <SiCoinmarketcap />, path: "/marketplace" },
-  { name: "Event", icon: <SiEventstore />, path: "/event"},
-  { name: "Ad Manager", icon:<FaAdversal /> , path: "/ad-manager"},   
-  { name: "Reels", icon:<SiShortcut /> , path: "/reel-short"},    
-   { name: "Messenger", icon:<FaFacebookMessenger />, path:"/messenger"},    
+  { name: "Event", icon: <SiEventstore />, path: "/event" },
+  { name: "Ad Manager", icon: <FaAdversal />, path: "/ad-manager" },
+  { name: "Reels & Shorts", icon: <SiShortcut />, path: "/reel-short" },
+  { name: "Messenger", icon: <FaFacebookMessenger />, path: "/messenger" },
 ];
 
 const filterOptions = ["All", "Trending", "Live", "Reels", "Shorts", "Music"];
@@ -193,13 +197,15 @@ const YoutubeHomePage = () => {
           >
             {sidebarItems.map((item) => (
               <Nav.Link
-                as={Link}          // ✅ Use Link
-                to={item.path}     // ✅ Path from sidebarItems
+                as={Link} // ✅ Use Link
+                to={item.path} // ✅ Path from sidebarItems
                 key={item.name}
                 active={activeSidebar === item.name}
                 onClick={() => setActiveSidebar(item.name)}
                 className="d-flex align-items-end text-decoration-none text-white  w-100"
-                style={{ justifyContent: sidebarOpen ? "flex-start" : "center" }}
+                style={{
+                  justifyContent: sidebarOpen ? "flex-start" : "center",
+                }}
               >
                 <span style={{ fontSize: "1.2rem" }}>{item.icon}</span>
                 {sidebarOpen && <span className="ms-2">{item.name}</span>}
@@ -215,7 +221,9 @@ const YoutubeHomePage = () => {
             {filterOptions.map((filter) => (
               <Button
                 key={filter}
-                variant={activeFilter === filter ? "primary" : "outline-primary"}
+                variant={
+                  activeFilter === filter ? "primary" : "outline-primary"
+                }
                 onClick={() => setActiveFilter(filter)}
               >
                 {filter}
@@ -247,7 +255,10 @@ const YoutubeHomePage = () => {
                     preload="metadata"
                     className="d-block"
                   />
-                  <p className="mt-1 text-truncate" style={{ fontSize: "0.85rem" }}>
+                  <p
+                    className="mt-1 text-truncate"
+                    style={{ fontSize: "0.85rem" }}
+                  >
                     {video.title}
                   </p>
                 </div>
@@ -274,7 +285,10 @@ const YoutubeHomePage = () => {
                       style={{ height: "180px", objectFit: "cover" }}
                     />
                     <Card.Body>
-                      <Card.Title className="text-truncate" style={{ fontSize: "1rem" }}>
+                      <Card.Title
+                        className="text-truncate"
+                        style={{ fontSize: "1rem" }}
+                      >
                         {video.title}
                       </Card.Title>
                       <Card.Text style={{ fontSize: "0.85rem", color: "gray" }}>
@@ -300,18 +314,18 @@ const YoutubeHomePage = () => {
           <Nav className="flex-column">
             {sidebarItems.map((item) => (
               <Nav.Link
-                as={Link}             // ✅ Use Link here too
-                to={item.path}        // ✅ Navigation works
+                as={Link} // ✅ Use Link here too
+                to={item.path} // ✅ Navigation works
                 key={item.name}
                 active={activeSidebar === item.name}
                 onClick={() => {
                   setActiveSidebar(item.name);
                   setMobileSidebarOpen(false);
                 }}
-                className="d-flex align-items-center mb-2"
+                className="d-flex align-items-center justify-content-start mb-2"
               >
-                <span className="me-2">{item.icon}</span>
-                <span>{item.name}</span>
+                <span className="text-black me-2">{item.icon}</span>
+                <span className="text-black text-">{item.name}</span>
               </Nav.Link>
             ))}
           </Nav>

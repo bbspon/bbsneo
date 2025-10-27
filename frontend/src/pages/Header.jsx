@@ -1,35 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Navbar,
-  Container,
-  Form,
-  FormControl,
-  Button,
-  InputGroup,
-} from "react-bootstrap";
-import "bootstrap/dist/css/bootstrap.min.css";
+import { Navbar, Container, Button } from "react-bootstrap";
 import { MdOutlineMenuBook, MdCancel } from "react-icons/md";
-import { FaSearch, FaArrowAltCircleDown, FaUserCircle ,} from "react-icons/fa";
-function Header() {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const searchBoxRef = useRef(null);
+import { FaSearch, FaArrowAltCircleDown, FaUserCircle } from "react-icons/fa";
+import "bootstrap/dist/css/bootstrap.min.css";
 
-  // Detect click outside of search box
+function Header({ isLoggedIn }) {
+  const [openMenu, setOpenMenu] = useState(false);
+  const [openUserDropdown, setOpenUserDropdown] = useState(false);
+  const [query, setQuery] = useState("");
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const menuRef = useRef();
+
+  // Close user dropdown if clicked outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        searchBoxRef.current &&
-        !searchBoxRef.current.contains(event.target)
-      ) {
-        // Outside click: close page (go back or redirect)
-        if (window.location.pathname === "/search-recommendations") {
-          window.history.back(); // or window.location.href = "/Home";
-        }
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenUserDropdown(false);
       }
     };
-    // document.addEventListener("mousedown", handleClickOutside);
-    // return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSearch = () => {
@@ -42,28 +32,18 @@ function Header() {
     }
   };
 
-  const handleUser = () => {
-    if (query.trim()) {
-      window.location.href = `/user-profile?q=${encodeURIComponent(query)}`;
-    } else {
-      window.location.href = `/user-profile`;
-    }
-  };
   const handleDownload = () => {
-    if (query.trim()) {
-      window.location.href = `/downloads?q=${encodeURIComponent(query)}`;
-    } else {
-      window.location.href = `/downloads`;
-    }
-  };  
-
-  const handleMessenger = () => {
-    if (query.trim()) {
-      window.location.href = `/messenger?q=${encodeURIComponent(query)}`;
-    } else {
-      window.location.href = `/messenger`;
-    }
+    window.location.href = query.trim()
+      ? `/downloads?q=${encodeURIComponent(query)}`
+      : `/downloads`;
   };
+
+  const handleUserDropdown = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPosition({ top: rect.bottom + 5, left: rect.left });
+    setOpenUserDropdown((prev) => !prev);
+  };
+
   return (
     <>
       <header className="header-wrapper">
@@ -78,18 +58,61 @@ function Header() {
             >
               BBS NEO
             </Navbar.Brand>
+
             <div className="d-flex align-items-center gap-2">
               <Button variant="dark" onClick={handleSearch}>
                 <FaSearch size={20} />
               </Button>
-              <Button variant="dark" onClick={() => setOpen(true)}>
+
+              <Button variant="dark" onClick={() => setOpenMenu(true)}>
                 <MdOutlineMenuBook size={25} />
               </Button>
-         
-              <Button variant="dark" onClick={handleUser}>
-                <FaUserCircle size={25} />
-              </Button>
-                   <Button variant="dark" onClick={handleDownload}>
+
+              <div ref={menuRef} className="position-relative">
+                <Button variant="dark" onClick={handleUserDropdown}>
+                  <FaUserCircle size={25} />
+                </Button>
+
+                {openUserDropdown && (
+                  <div
+                    className="dropdown-menu show shadow"
+                    style={{
+                      position: "fixed",
+                      top: menuPosition.top,
+                      left: menuPosition.left,
+                      minWidth: "120px",
+                      zIndex: 999999, // ✅ higher priority
+                    }}
+                  >
+                    <a href="/user-profile" className="dropdown-item">
+                      Profile
+                    </a>
+                    <a href="/settings" className="dropdown-item">
+                      Settings
+                    </a>
+                    <a href="/subscription" className="dropdown-item">
+                      Subscription
+                    </a>
+
+                    {isLoggedIn && (
+                      <a href="/logout" className="dropdown-item">
+                        Logout
+                      </a>
+                    )}
+
+                    <div className="dropdown-divider"></div>
+
+                    <a href="/rewards" className="dropdown-item">
+                      Rewards
+                    </a>
+                    <a href="/downloads" className="dropdown-item">
+                      Downloads
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <Button variant="dark" onClick={handleDownload}>
                 <FaArrowAltCircleDown size={25} />
               </Button>
             </div>
@@ -97,45 +120,43 @@ function Header() {
         </Navbar>
       </header>
 
-      {/* Full-screen menu */}
-      <div className={`fullscreen-menu ${open ? "show" : ""}`}>
+      <div className={`fullscreen-menu ${openMenu ? "show" : ""}`}>
         <button
           className="close-btn"
-          onClick={() => setOpen(false)}
+          onClick={() => setOpenMenu(false)}
           aria-label="Close menu"
         >
           <MdCancel size={40} />
         </button>
         <nav className="fullscreen-links">
-          <a href="/Home" onClick={() => setOpen(false)}>
+          <a href="/Home" onClick={() => setOpenMenu(false)}>
             Home
           </a>
-          <a href="/live" onClick={() => setOpen(false)}>
+          <a href="/live" onClick={() => setOpenMenu(false)}>
             Live TV
           </a>
-        
-          <a href="/media-pipeline" onClick={() => setOpen(false)}>
+          <a href="/media-pipeline" onClick={() => setOpenMenu(false)}>
             Media Pipeline
           </a>
-          <a href="/data-analytics" onClick={() => setOpen(false)}>
+          <a href="/data-analytics" onClick={() => setOpenMenu(false)}>
             Data Analytics
           </a>
-          <a href="/security-safety" onClick={() => setOpen(false)}>
+          <a href="/security-safety" onClick={() => setOpenMenu(false)}>
             Security Safety
           </a>
-          <a href="/Observability" onClick={() => setOpen(false)}>
+          <a href="/Observability" onClick={() => setOpenMenu(false)}>
             Observability
           </a>
-          <a href=" /selltement-finance" onClick={() => setOpen(false)}>
+          <a href="/selltement-finance" onClick={() => setOpenMenu(false)}>
             Selltement Finance
           </a>
-          <a href="/hybrid-delivery" onClick={() => setOpen(false)}>
+          <a href="/hybrid-delivery" onClick={() => setOpenMenu(false)}>
             Hybrid Delivery
           </a>
-          <a href="/monetization" onClick={() => setOpen(false)}>
+          <a href="/monetization" onClick={() => setOpenMenu(false)}>
             Monetization
           </a>
-          <a href="/creator" onClick={() => setOpen(false)}>
+          <a href="/creator" onClick={() => setOpenMenu(false)}>
             Creator
           </a>
         </nav>
@@ -145,50 +166,38 @@ function Header() {
         .header-wrapper {
           width: 100%;
           background-color: #212c3a;
+          position: relative;
+          z-index: 9999; /* ✅ Keeps navbar above all content */
         }
+
         .custom-navbar {
           background-color: #251e1e !important;
           border-bottom: 2px solid #75797c;
         }
+
         .brand-title {
           font-family: "Josefin Sans", sans-serif;
           color: #dc3545;
           letter-spacing: 2px;
           font-size: 1.5rem;
         }
-        .search-form {
-          flex-grow: 1;
-          max-width: 400px;
-        }
-        .search-input {
-          background-color: #2f3845;
-          border: 1px solid #444;
-          color: #fff;
-        }
-        .search-input::placeholder {
-          color: #bbb;
-        }
-        .menu-toggle {
-          background: none;
-          border: none;
-          cursor: pointer;
-          display: flex;
-          z-index: 1101;
-        }
+
         .fullscreen-menu {
           position: fixed;
           top: 0;
           left: 0;
           width: 100%;
           height: 0;
-          background: rgba(0, 0, 0, 0.95);
+          background: rgba(0,0,0,0.95);
           overflow: hidden;
           transition: height 0.4s ease;
-          z-index: 1100;
+          z-index: 10000; /* ✅ On top of everything */
         }
+
         .fullscreen-menu.show {
           height: 100%;
         }
+
         .close-btn {
           position: absolute;
           top: 20px;
@@ -198,9 +207,11 @@ function Header() {
           color: #fff;
           cursor: pointer;
         }
+
         .close-btn:hover {
           color: #dc3545;
         }
+
         .fullscreen-links {
           position: absolute;
           top: 50%;
@@ -211,11 +222,13 @@ function Header() {
           align-items: center;
           gap: 2rem;
         }
+
         .fullscreen-links a {
           color: #fff;
           font-size: 1.8rem;
           text-decoration: none;
         }
+
         .fullscreen-links a:hover {
           color: #dc3545;
         }
