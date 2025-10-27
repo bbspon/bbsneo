@@ -14,7 +14,9 @@ import {
 // ======================
 // Config
 // ======================
-const API_BASE = "http://127.0.0.1:3104"; // OTT service
+const API_BASE = (
+  import.meta?.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+).replace(/\/+$/, "");
 const PLACEHOLDER_VIDEO = "https://www.w3schools.com/html/mov_bbb.mp4";
 
 // Optional: if you store a JWT
@@ -22,7 +24,6 @@ const authHeader = () => {
   const t = localStorage.getItem("bbsneo_token");
   return t ? { Authorization: `Bearer ${t}` } : {};
 };
-
 
 const ReelShortPage = () => {
   const [reels, setReels] = useState([]);
@@ -42,7 +43,6 @@ const ReelShortPage = () => {
         const { data } = await axios.get(`${API_BASE}/reels?limit=20`, {
           headers: { ...authHeader() },
         });
-
         if (cancelled) return;
 
         const list = Array.isArray(data) ? data : [];
@@ -57,10 +57,9 @@ const ReelShortPage = () => {
           comments: Array.isArray(r.comments) ? r.comments : [],
         }));
 
-        // Only override demo data if API returned at least one item
         if (mapped.length > 0) setReels(mapped);
       } catch {
-        // Keep demo silently on any error
+        // keep demo silently
       }
     };
 
@@ -70,7 +69,6 @@ const ReelShortPage = () => {
     };
   }, []);
 
-  // Auto play/pause when index changes
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -79,7 +77,6 @@ const ReelShortPage = () => {
     v.play().catch(() => {});
   }, [currentIndex, muted]);
 
-  // Simple scroll navigation (wheel up/down)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -102,18 +99,12 @@ const ReelShortPage = () => {
 
   const current = reels[currentIndex] || {};
 
-  // ======================
-  // Actions (optimistic)
-  // ======================
   const handleToggleMute = () => setMuted((m) => !m);
 
   const handleLike = async () => {
     if (!current.id) return;
-
-    // compute next state to avoid stale reads
     const nextLiked = !liked;
 
-    // optimistic
     setLiked(nextLiked);
     setReels((prev) => {
       const copy = [...prev];
@@ -129,7 +120,6 @@ const ReelShortPage = () => {
       }`;
       await axios.post(url, {}, { headers: { ...authHeader() } });
     } catch {
-      // rollback
       setLiked(!nextLiked);
       setReels((prev) => {
         const copy = [...prev];
@@ -152,7 +142,6 @@ const ReelShortPage = () => {
       replies: [],
     };
 
-    // optimistic
     setReels((prev) => {
       const copy = [...prev];
       const r = { ...(copy[currentIndex] || {}) };
@@ -168,14 +157,13 @@ const ReelShortPage = () => {
         headers: { "Content-Type": "application/json", ...authHeader() },
       });
     } catch {
-      // ignore; UI already shows comment
+      // ignore
     }
   };
 
   const handleShare = async () => {
     if (!current.id) return;
 
-    // optimistic bump
     setReels((prev) => {
       const copy = [...prev];
       const r = { ...(copy[currentIndex] || {}) };
@@ -188,16 +176,15 @@ const ReelShortPage = () => {
       await axios.post(
         `${API_BASE}/reels/${current.id}/share`,
         {},
-        { headers: { ...authHeader() } }
+        {
+          headers: { ...authHeader() },
+        }
       );
     } catch {
       // ignore
     }
   };
 
-  // ======================
-  // UI
-  // ======================
   return (
     <div
       ref={containerRef}
@@ -210,7 +197,6 @@ const ReelShortPage = () => {
         overflow: "hidden",
       }}
     >
-      {/* Video area */}
       <div
         style={{
           position: "relative",
@@ -230,14 +216,12 @@ const ReelShortPage = () => {
           playsInline
           controls={false}
           onError={(e) => {
-            // fallback if bad URL
             e.currentTarget.src = PLACEHOLDER_VIDEO;
             e.currentTarget.play().catch(() => {});
           }}
           autoPlay
         />
 
-        {/* Left bottom: title and description */}
         <div
           style={{
             position: "absolute",
@@ -256,7 +240,6 @@ const ReelShortPage = () => {
           <div style={{ opacity: 0.8 }}>{current.description || ""}</div>
         </div>
 
-        {/* Right: action buttons */}
         <div
           style={{
             position: "absolute",
@@ -308,7 +291,6 @@ const ReelShortPage = () => {
         </div>
       </div>
 
-      {/* Comments panel */}
       <div
         id="comments"
         style={{
@@ -374,7 +356,6 @@ const ReelShortPage = () => {
   );
 };
 
-// small inline button style to match floating icons
 const btnStyle = {
   background: "rgba(0,0,0,0.6)",
   color: "#fff",
