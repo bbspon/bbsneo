@@ -23,48 +23,8 @@ import { API_BASE } from "../config/api";
 
 const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!email || !password) {
-      setError("Please enter both email and password.");
-      return;
-    }
-
-    setLoading(true);
-
-    // Simulated login logic
-    setTimeout(() => {
-      setLoading(false);
-      if (email === "demo@user.com" && password === "123456") {
-        alert("Login successful!");
-      } else {
-        setError("Invalid credentials.");
-      }
-    }, 1200);
-  };
-
-  const handleSocialLogin = (provider) => {
-    const urls = {
-      Google: "https://accounts.google.com/signin",
-      Facebook: "https://www.facebook.com/login",
-      Apple: "https://appleid.apple.com/",
-      Twitter: "https://twitter.com/login",
-    };
-
-    const url = urls[provider];
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      alert(`No login URL configured for ${provider}`);
-    }
-  };
 
   // Email/Password form state
   const [form, setForm] = useState({ email: "", password: "" });
@@ -77,8 +37,7 @@ const Login = () => {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  // Mock email/password login
-  // Real email/password login (keeps same UI)
+  // Real email/password login (env-based URL, no hardcoding)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -91,45 +50,37 @@ const Login = () => {
     }
 
     try {
-      // [API-INTEG] normalize base URL to avoid double slashes
-      // [API-INTEG] normalize endpoint from API_BASE safely
-      const rawBase = (API_BASE || "http://127.0.0.1:3103").replace(/\/+$/, "");
+      // Resolve base URL in this priority:
+      // 1) VITE_IDENTITY_URL (recommended)
+      // 2) API_BASE from ../config/api (if you already use it)
+      // 3) Local fallback (dev)
+      const base = (
+        import.meta.env?.VITE_IDENTITY_URL ||
+        API_BASE ||
+        "http://127.0.0.1:3103"
+      ) // fallback for local dev
+        .replace(/\/+$/, "");
+      const url = `${base}/login`;
 
-      // If API_BASE already ends with /login (or /login/...), use it directly.
-      // Else if API_BASE ends with /v1/identity, append /login.
-      // Else (plain host), append /login.
-      let url = rawBase;
-      if (!/\/login\/?$/.test(rawBase)) {
-        if (/\/v1\/identity\/?$/.test(rawBase)) {
-          url = `${rawBase}/login`;
-        } else {
-          url = `${rawBase}/login`;
-        }
-      }
-      // url is now the final endpoint
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      // [API-INTEG] handle non-2xx
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        // prefer server message if available
-        const message = txt || `Login failed (${res.status})`;
-        throw new Error(message);
+        throw new Error(txt || `Login failed (${res.status})`);
       }
 
-      // [API-INTEG] parse and persist token/user
       const data = await res.json();
 
       if (data?.token) {
-        localStorage.setItem("bbsneo_token", data.token); // keep token
+        localStorage.setItem("bbsneo_token", data.token);
       }
       if (data?.user) {
         try {
-          localStorage.setItem("bbsneo_user", JSON.stringify(data.user)); // optional user cache
+          localStorage.setItem("bbsneo_user", JSON.stringify(data.user));
         } catch {}
       }
 
@@ -137,12 +88,11 @@ const Login = () => {
       navigate("/home");
     } catch (err) {
       console.error("Login error:", err);
-      // [API-INTEG] friendly alert while preserving console for debugging
       alert(err?.message || "Invalid credentials or server error.");
     }
   };
 
-  // Mock phone login logic
+  // Mock phone login logic (unchanged UI/flow)
   const handlePhoneLogin = (e) => {
     e.preventDefault();
     if (!/^[0-9]{10}$/.test(phone)) {
@@ -165,6 +115,7 @@ const Login = () => {
 
     setTimeout(() => navigate("/otp-verify", { state: { phone } }), 1000);
   };
+
   return (
     <div className="container-fluid vh-100">
       <div className="row h-100">

@@ -7,7 +7,6 @@ import {
   Card,
   Button,
   Form,
-  ListGroup,
   Modal,
   Carousel,
 } from "react-bootstrap";
@@ -17,9 +16,16 @@ import Swal from "sweetalert2";
 import { IoSettingsOutline } from "react-icons/io5";
 
 /* ======================= [API-PROFILE] helpers START ======================= */
+// Base URL priority:
+// 1) VITE_IDENTITY_URL  (production: https://bbsneo.com/api/identity)
+// 2) VITE_API_BASE      (legacy support, if you already used it elsewhere)
+// 3) local fallback     (dev)
 const API_BASE = (
-  import.meta?.env?.VITE_API_BASE || "http://127.0.0.1:3103"
+  import.meta?.env?.VITE_IDENTITY_URL ||
+  import.meta?.env?.VITE_API_BASE ||
+  "http://127.0.0.1:3103"
 ).replace(/\/+$/, "");
+
 const authHeader = () => {
   const t = localStorage.getItem("bbsneo_token");
   return t ? { Authorization: `Bearer ${t}` } : {};
