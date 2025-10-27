@@ -31,11 +31,27 @@ const toggleWatchlist = (id) => {
 
 useEffect(() => {
   async function loadMovies() {
+    // Resolve base URL:
+    // 1) VITE_OTT_URL (prod: https://bbsneo.com/api/ott)
+    // 2) local fallback for dev
+    const base = (
+      import.meta.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+    ).replace(/\/+$/, "");
+
+    // Optional: simple 10s timeout
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+
     try {
-      const res = await fetch("http://localhost:3107/api/movies");
+      const res = await fetch(`${base}/movies`, {
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
+
       if (json?.success && Array.isArray(json.data)) {
-        // Normalize shape so UI never breaks
         const safe = (v) => (typeof v === "string" ? v : "");
         const cleaned = json.data.map((m) => ({
           id: m.id ?? m._id ?? crypto.randomUUID(),
@@ -45,15 +61,18 @@ useEffect(() => {
         }));
         setMovies(cleaned);
       } else {
-        setMovies([]); // keep it safe
+        setMovies([]);
       }
     } catch (e) {
       console.error("Movies fetch failed", e);
-      setMovies([]); // fail-safe
+      setMovies([]);
+    } finally {
+      clearTimeout(t);
     }
   }
   loadMovies();
 }, []);
+
 
 
   return (
