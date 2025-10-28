@@ -35,7 +35,7 @@ const yStudio = {
       ...params,
     }).toString();
     const r = await fetch(
-      `${API_BASE}/api/ystudio/videos${qs ? `?${qs}` : ""}`
+      `${API_BASE}/ystudio${qs ? `?${qs}` : ""}`
     );
     if (!r.ok) throw new Error("Failed to load videos");
        const json = await r.json();

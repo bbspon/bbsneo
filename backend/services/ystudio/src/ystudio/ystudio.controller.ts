@@ -12,7 +12,7 @@ import { YStudioService } from "./ystudio.service";
 import { CreateVideoDto } from "./dto/create-video.dto";
 import { UpdateVideoDto } from "./dto/update-video.dto";
 
-@Controller("api/ystudio/videos")
+@Controller("ystudio")
 export class YStudioController {
   constructor(private readonly svc: YStudioService) {}
 
