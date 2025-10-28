@@ -11,7 +11,7 @@ import {
 import { MoviesService } from "./movies.service";
 import { Movie } from "./movies.schema";
 
-@Controller("api/movies")
+@Controller("movies")
 export class MoviesController {
   constructor(private readonly moviesService: MoviesService) {}
 
