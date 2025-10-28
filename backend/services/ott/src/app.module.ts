@@ -9,7 +9,6 @@ import { MoviesModule } from "./movies/movies.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { LiveModule } from "./live/schemas/live.module";
 import { HomeModule } from "./home/home.module";
-import { YStudioModule } from "./ystudio/ystudio.module";
 
 @Module({
   imports: [
@@ -27,7 +26,6 @@ import { YStudioModule } from "./ystudio/ystudio.module";
     CategoriesModule,
     LiveModule,
     HomeModule,
-    YStudioModule,
   ],
   controllers: [TrendingController],
   providers: [TrendingService],

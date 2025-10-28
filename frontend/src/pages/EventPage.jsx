@@ -1,4 +1,4 @@
-// EventPage.jsx
+// EventPage.jsx (API-integrated, UI untouched)
 import React, { useEffect, useState } from "react";
 import {
   Container,
@@ -26,83 +26,120 @@ import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-// ---------------------- Mock Data ----------------------
-const initialEvents = [
-  {
-    id: 1,
-    title: "React Conference 2025",
-    host: "DevCommunity",
-    date: "2025-10-20",
-    time: "10:00 AM",
-    location: "Bangalore",
-    category: "Tech",
-    description: "Join top developers for workshops, talks, and networking.",
-    attendees: ["Alice", "Bob", "Charlie"],
-    image:
-      "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgEZWMe3q5b-os9q4IIf36XCjs6RTlteejCWJYkYJouinSt1o1FnOZGm36OrQ50c3zr7Kl8wVsDk5txZ7bJBtCW12-rEEqms2IJ9Riztforo39x6MlrKyvAYnN3bFxgqB-jVnKUZIBvbdml1pn6zBB94AOg6_x5-yQJUpygD7Kh-1vQ7r2YLUZqTN8TR7I/s3000/what-is-javascript.jpg",
-    video:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-    online: false,
-    ticketPrice: 1500,
-    maxAttendees: 200,
+// ---------------------- API Helper (replaces mock data) ----------------------
+const API_BASE = (
+  import.meta?.env?.VITE_YSTUDIO_URL || "http://127.0.0.1:3106"
+).replace(/\/+$/, "");
+const eventsApi = {
+  async list(params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    const res = await fetch(`${API_BASE}/api/events${qs ? `?${qs}` : ""}`);
+    if (!res.ok) throw new Error("Failed to load events");
+    const json = await res.json();
+    // Support either {items:[...]} or a plain array
+    return Array.isArray(json) ? json : json.items || [];
   },
-  {
-    id: 2,
-    title: "Yoga & Wellness Live Stream",
-    host: "FitLife",
-    date: "2025-10-12",
-    time: "06:00 PM",
-    location: "Online",
-    category: "Health",
-    description: "Participate from home in this guided yoga session.",
-    attendees: ["David", "Eva"],
-    image:
-      "https://images.unsplash.com/photo-1552058544-f2b08422138a?q=80&w=1200&auto=format&fit=crop",
-    video: "https://sample-videos.com/video123/mp4/720/sample-5s.mp4",
-    online: true,
-    ticketPrice: 0,
-    maxAttendees: 1000,
+  async create(payload) {
+    const res = await fetch(`${API_BASE}/api/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Create failed");
+    return res.json();
   },
-];
-
-const allCategories = [
-  "All",
-  "Tech",
-  "Music",
-  "Health",
-  "Sports",
-  "Business",
-  "Community",
-  "Education",
-];
-const defaultLocations = ["All", "Bangalore", "Mumbai", "Delhi", "Chennai", "Online"];
-
-// ---------------------- Helper Utils ----------------------
-const confirmAction = async (title, action = "delete") => {
-  const result = await Swal.fire({
-    title: `${action.charAt(0).toUpperCase() + action.slice(1)} "${title}"?`,
-    text: "This action cannot be undone.",
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonText: `Yes, ${action}`,
-    cancelButtonText: "Cancel",
-  });
-  return result.isConfirmed;
+  async update(id, payload) {
+    const res = await fetch(`${API_BASE}/api/events/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Update failed");
+    return res.json();
+  },
+  async remove(id) {
+    const res = await fetch(`${API_BASE}/api/events/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Delete failed");
+    return res.json();
+  },
+  async rsvp(id, userId) {
+    const res = await fetch(`${API_BASE}/api/events/${id}/rsvp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    if (!res.ok) throw new Error("RSVP failed");
+    return res.json();
+  },
 };
 
-const notifySuccess = (title, text) => {
-  Swal.fire({
-    icon: "success",
-    title,
-    text,
-    timer: 1500,
-    showConfirmButton: false,
-  });
+// ---------- helpers to map API <-> UI without changing UI fields ----------
+const toUiShape = (doc) => {
+  // Accept both _id and id
+  const id =
+    typeof doc._id === "string" ? doc._id : doc._id?.$oid || doc.id || doc._id;
+  const dt = doc.startDateTime ? new Date(doc.startDateTime) : null;
+  const date = dt ? dt.toISOString().slice(0, 10) : doc.date || "";
+  const time = dt
+    ? new Intl.DateTimeFormat("en-IN", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(dt)
+    : doc.time || "";
+
+  return {
+    id,
+    title: doc.title,
+    host: doc.organizerName || doc.host || "—",
+    date,
+    time,
+    location: doc.location || "Online",
+    category: doc.category || "Tech",
+    description: doc.description || "",
+    attendees: Array.isArray(doc.attendees) ? doc.attendees : [],
+    image: doc.coverImageUrl || doc.image || "",
+    video: doc.videoUrl || doc.video || "",
+    online: doc.locationType === "Online" || doc.online === true,
+    ticketPrice: doc.ticketPrice ?? 0,
+    maxAttendees: doc.attendeeLimit ?? doc.maxAttendees ?? 100,
+  };
+};
+
+const toApiShape = (ui) => {
+  // Combine date + time to ISO datetime if both exist
+  let startDateTime = undefined;
+  if (ui.date) {
+    const timePart = ui.time && ui.time.trim() ? ui.time : "00:00";
+    // Accept "10:00 AM" or "18:30"
+    const t = new Date(`${ui.date} ${timePart}`);
+    if (!isNaN(t.getTime())) startDateTime = t.toISOString();
+  }
+
+  return {
+    title: ui.title,
+    description: ui.description,
+    category: ui.category,
+    organizerName: ui.host,
+    locationType:
+      ui.online || ui.location?.toLowerCase() === "online"
+        ? "Online"
+        : "Offline",
+    location: ui.location,
+    startDateTime,
+    coverImageUrl: ui.image,
+    videoUrl: ui.video,
+    ticketPrice: Number(ui.ticketPrice) || 0,
+    attendeeLimit: Number(ui.maxAttendees) || 100,
+    // createdBy should be set by auth in backend; provide placeholder fallback if needed
+  };
 };
 
 // ---------------------- Event Page Component ----------------------
 export default function EventPage() {
-  const [events, setEvents] = useState(initialEvents);
+  const [events, setEvents] = useState([]); // removed mock data
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [location, setLocation] = useState("All");
@@ -111,6 +148,25 @@ export default function EventPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOffcanvasOpen, setMobileOffcanvasOpen] = useState(false);
+
+  const allCategories = [
+    "All",
+    "Tech",
+    "Music",
+    "Health",
+    "Sports",
+    "Business",
+    "Community",
+    "Education",
+  ];
+  const defaultLocations = [
+    "All",
+    "Bangalore",
+    "Mumbai",
+    "Delhi",
+    "Chennai",
+    "Online",
+  ];
 
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -127,15 +183,29 @@ export default function EventPage() {
     maxAttendees: 100,
   });
 
-  const [filtered, setFiltered] = useState(events);
+  const [filtered, setFiltered] = useState([]);
 
-  // Filter events
+  // Initial load from API
+  useEffect(() => {
+    (async () => {
+      try {
+        const docs = await eventsApi.list();
+        const mapped = docs.map(toUiShape);
+        setEvents(mapped);
+      } catch (e) {
+        console.error("Failed to fetch events", e);
+        setEvents([]);
+      }
+    })();
+  }, []);
+
+  // Filter events (unchanged UI logic)
   useEffect(() => {
     let res = events.filter((e) => {
       const matchesQuery =
         !query ||
-        e.title.toLowerCase().includes(query.toLowerCase()) ||
-        e.description.toLowerCase().includes(query.toLowerCase());
+        e.title?.toLowerCase().includes(query.toLowerCase()) ||
+        e.description?.toLowerCase().includes(query.toLowerCase());
       const matchesCategory = category === "All" || e.category === category;
       const matchesLocation = location === "All" || e.location === location;
       return matchesQuery && matchesCategory && matchesLocation;
@@ -158,10 +228,27 @@ export default function EventPage() {
   };
 
   const handleDelete = async (event) => {
-    const ok = await confirmAction(event.title, "delete");
+    const ok = await Swal.fire({
+      title: `Delete "${event.title}"?`,
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+    }).then((r) => r.isConfirmed);
     if (!ok) return;
-    setEvents((prev) => prev.filter((e) => e.id !== event.id));
-    notifySuccess("Deleted", `${event.title} removed.`);
+    try {
+      await eventsApi.remove(event.id);
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({ icon: "error", title: "Delete failed" });
+    }
   };
 
   const handleRSVP = async (event) => {
@@ -172,12 +259,21 @@ export default function EventPage() {
       confirmButtonText: "Going",
       cancelButtonText: "Not Going",
     });
-    if (result.isConfirmed) {
-      notifySuccess("RSVP Confirmed", "You are going to this event!");
+    if (!result.isConfirmed) return;
+    try {
+      await eventsApi.rsvp(event.id, "000000000000000000000001"); // TODO: replace with real user id from auth
+      Swal.fire({
+        icon: "success",
+        title: "RSVP Confirmed",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    } catch {
+      Swal.fire({ icon: "error", title: "RSVP failed" });
     }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     const required = [
       "title",
       "host",
@@ -190,30 +286,65 @@ export default function EventPage() {
     ];
     for (const k of required) {
       if (!newEvent[k]) {
-        Swal.fire({ icon: "error", title: "Missing field", text: `Please fill ${k}` });
+        Swal.fire({
+          icon: "error",
+          title: "Missing field",
+          text: `Please fill ${k}`,
+        });
         return;
       }
     }
-    const id = Math.max(0, ...events.map((e) => e.id)) + 1;
-    const payload = { ...newEvent, id, attendees: [] };
-    setEvents((prev) => [payload, ...prev]);
-    setShowCreate(false);
-    setNewEvent({
-      title: "",
-      host: "",
-      date: "",
-      time: "",
-      location: "",
-      category: "Tech",
-      description: "",
-      image: "",
-      video: "",
-      online: false,
-      ticketPrice: 0,
-      maxAttendees: 100,
-    });
-    notifySuccess("Published", "Your event is live.");
+    try {
+      const payload = toApiShape(newEvent);
+      const saved = await eventsApi.create(payload);
+      const ui = toUiShape(saved);
+      setEvents((prev) => [ui, ...prev]);
+      setShowCreate(false);
+      setNewEvent({
+        title: "",
+        host: "",
+        date: "",
+        time: "",
+        location: "",
+        category: "Tech",
+        description: "",
+        image: "",
+        video: "",
+        online: false,
+        ticketPrice: 0,
+        maxAttendees: 100,
+      });
+      Swal.fire({
+        icon: "success",
+        title: "Published",
+        text: "Your event is live.",
+        timer: 1300,
+        showConfirmButton: false,
+      });
+    } catch (e) {
+      Swal.fire({ icon: "error", title: "Publish failed" });
+    }
   };
+
+  // ---------------------- UI (unchanged) ----------------------
+  const allCategoriesUI = [
+    "All",
+    "Tech",
+    "Music",
+    "Health",
+    "Sports",
+    "Business",
+    "Community",
+    "Education",
+  ];
+  const defaultLocationsUI = [
+    "All",
+    "Bangalore",
+    "Mumbai",
+    "Delhi",
+    "Chennai",
+    "Online",
+  ];
 
   return (
     <Container fluid className="bg-light min-vh-100 p-3">
@@ -246,8 +377,13 @@ export default function EventPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </InputGroup>
-          <Button className="flex-shrink-0" size="sm" variant="success" onClick={() => setShowCreate(true)}>
-            <FaPlus/> Create Event
+          <Button
+            className="flex-shrink-0"
+            size="sm"
+            variant="success"
+            onClick={() => setShowCreate(true)}
+          >
+            <FaPlus /> Create Event
           </Button>
         </Col>
       </Row>
@@ -267,7 +403,11 @@ export default function EventPage() {
             >
               <div className="d-flex justify-content-between align-items-center mb-2">
                 <strong>Filters</strong>
-                <Button variant="link" size="sm" onClick={() => setSidebarOpen(false)}>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setSidebarOpen(false)}
+                >
                   <FaTimes />
                 </Button>
               </div>
@@ -297,8 +437,18 @@ export default function EventPage() {
                       {location}
                     </Dropdown.Toggle>
                     <Dropdown.Menu>
-                      {defaultLocations.map((loc) => (
-                        <Dropdown.Item key={loc} onClick={() => setLocation(loc)}>
+                      {[
+                        "All",
+                        "Bangalore",
+                        "Mumbai",
+                        "Delhi",
+                        "Chennai",
+                        "Online",
+                      ].map((loc) => (
+                        <Dropdown.Item
+                          key={loc}
+                          onClick={() => setLocation(loc)}
+                        >
                           {loc}
                         </Dropdown.Item>
                       ))}
@@ -309,7 +459,16 @@ export default function EventPage() {
                 <ListGroup.Item className="mt-3">
                   <div className="small text-muted mb-1">Categories</div>
                   <div className="d-flex flex-column gap-1">
-                    {allCategories.map((c) => (
+                    {[
+                      "All",
+                      "Tech",
+                      "Music",
+                      "Health",
+                      "Sports",
+                      "Business",
+                      "Community",
+                      "Education",
+                    ].map((c) => (
                       <Button
                         key={c}
                         variant={c === category ? "primary" : "light"}
@@ -328,7 +487,10 @@ export default function EventPage() {
         )}
 
         {/* MOBILE OFFCANVAS */}
-        <Offcanvas show={mobileOffcanvasOpen} onHide={() => setMobileOffcanvasOpen(false)}>
+        <Offcanvas
+          show={mobileOffcanvasOpen}
+          onHide={() => setMobileOffcanvasOpen(false)}
+        >
           <Offcanvas.Header closeButton>
             <Offcanvas.Title>Filters</Offcanvas.Title>
           </Offcanvas.Header>
@@ -362,7 +524,14 @@ export default function EventPage() {
                     {location}
                   </Dropdown.Toggle>
                   <Dropdown.Menu>
-                    {defaultLocations.map((loc) => (
+                    {[
+                      "All",
+                      "Bangalore",
+                      "Mumbai",
+                      "Delhi",
+                      "Chennai",
+                      "Online",
+                    ].map((loc) => (
                       <Dropdown.Item
                         key={loc}
                         onClick={() => {
@@ -380,7 +549,16 @@ export default function EventPage() {
               <ListGroup.Item className="mt-3">
                 <div className="small text-muted mb-1">Categories</div>
                 <div className="d-flex flex-column gap-1">
-                  {allCategories.map((c) => (
+                  {[
+                    "All",
+                    "Tech",
+                    "Music",
+                    "Health",
+                    "Sports",
+                    "Business",
+                    "Community",
+                    "Education",
+                  ].map((c) => (
                     <Button
                       key={c}
                       variant={c === category ? "primary" : "light"}
@@ -421,7 +599,11 @@ export default function EventPage() {
                     <img
                       src={event.image}
                       alt={event.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
                     />
                   </div>
                   <Card.Body className="d-flex flex-column">
@@ -453,7 +635,12 @@ export default function EventPage() {
       </Row>
 
       {/* EVENT DETAIL MODAL */}
-      <Modal show={showDetail} onHide={() => setShowDetail(false)} size="lg" centered>
+      <Modal
+        show={showDetail}
+        onHide={() => setShowDetail(false)}
+        size="lg"
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>{activeEvent?.title}</Modal.Title>
         </Modal.Header>
@@ -464,7 +651,8 @@ export default function EventPage() {
                 <strong>Host:</strong> {activeEvent.host}
               </p>
               <p>
-                <strong>Date & Time:</strong> {activeEvent.date} {activeEvent.time}
+                <strong>Date & Time:</strong> {activeEvent.date}{" "}
+                {activeEvent.time}
               </p>
               <p>
                 <strong>Location:</strong> {activeEvent.location}{" "}
@@ -506,7 +694,12 @@ export default function EventPage() {
       </Modal>
 
       {/* CREATE EVENT MODAL */}
-      <Modal show={showCreate} onHide={() => setShowCreate(false)} size="lg" centered>
+      <Modal
+        show={showCreate}
+        onHide={() => setShowCreate(false)}
+        size="lg"
+        centered
+      >
         <Modal.Header closeButton>
           <Modal.Title>Create New Event</Modal.Title>
         </Modal.Header>
@@ -515,61 +708,88 @@ export default function EventPage() {
             <Form.Control
               placeholder="Event Title"
               value={newEvent.title}
-              onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, title: e.target.value })
+              }
             />
             <Form.Control
               placeholder="Host Name"
               value={newEvent.host}
-              onChange={(e) => setNewEvent({ ...newEvent, host: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, host: e.target.value })
+              }
             />
             <Form.Control
               type="date"
               value={newEvent.date}
-              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, date: e.target.value })
+              }
             />
             <Form.Control
               type="time"
               value={newEvent.time}
-              onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, time: e.target.value })
+              }
             />
             <Form.Control
               placeholder="Location or Link"
               value={newEvent.location}
-              onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, location: e.target.value })
+              }
             />
             <Form.Select
               value={newEvent.category}
-              onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, category: e.target.value })
+              }
             >
-              {allCategories
-                .filter((c) => c !== "All")
-                .map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
+              {[
+                "Tech",
+                "Music",
+                "Health",
+                "Sports",
+                "Business",
+                "Community",
+                "Education",
+              ].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
             </Form.Select>
             <Form.Control
               as="textarea"
               rows={3}
               placeholder="Description"
               value={newEvent.description}
-              onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, description: e.target.value })
+              }
             />
             <Form.Control
               placeholder="Image URL"
               value={newEvent.image}
-              onChange={(e) => setNewEvent({ ...newEvent, image: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, image: e.target.value })
+              }
             />
             <Form.Control
               placeholder="Video URL (optional)"
               value={newEvent.video}
-              onChange={(e) => setNewEvent({ ...newEvent, video: e.target.value })}
+              onChange={(e) =>
+                setNewEvent({ ...newEvent, video: e.target.value })
+              }
             />
             <Form.Control
               type="number"
               placeholder="Ticket Price (₹)"
               value={newEvent.ticketPrice}
               onChange={(e) =>
-                setNewEvent({ ...newEvent, ticketPrice: parseInt(e.target.value) })
+                setNewEvent({
+                  ...newEvent,
+                  ticketPrice: parseInt(e.target.value || "0", 10),
+                })
               }
             />
             <Form.Control
@@ -577,7 +797,10 @@ export default function EventPage() {
               placeholder="Max Attendees"
               value={newEvent.maxAttendees}
               onChange={(e) =>
-                setNewEvent({ ...newEvent, maxAttendees: parseInt(e.target.value) })
+                setNewEvent({
+                  ...newEvent,
+                  maxAttendees: parseInt(e.target.value || "0", 10),
+                })
               }
             />
           </Form>

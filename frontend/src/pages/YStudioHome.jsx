@@ -25,7 +25,7 @@ import { PiPopcornDuotone } from "react-icons/pi";
 
 // === Live API integration (replaces dummy data) ===
 const API_BASE = (
-  import.meta?.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+  import.meta?.env?.VITE_YSTUDIO_URL || "http://127.0.0.1:3106"
 ).replace(/\/+$/, "");
 
 const yStudio = {
