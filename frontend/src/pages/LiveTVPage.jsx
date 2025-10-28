@@ -16,61 +16,14 @@ import {
   ButtonGroup,
 } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import axios from "axios";
+const API_BASE = (
+  import.meta?.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+).replace(/\/+$/, "");
 
-// Mock channels
-const CHANNELS = [
-  {
-    id: 1,
-    name: "World News",
-    category: "News",
-    lang: "EN",
-    premium: false,
-    rating: 4,
-    logo: "https://static2.bigstockphoto.com/2/8/1/large1500/182808667.jpg",
-    streamUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-    now: "Live: Global Headlines",
-    next: "09:30 - Market Update",
-  },
-  {
-    id: 2,
-    name: "Sports 24",
-    category: "Sports",
-    lang: "EN",
-    premium: true,
-    rating: 5,
-    logo: "https://images.sftcdn.net/images/t_app-cover-l,f_auto/p/6b6f9e97-d381-4fdf-8586-e1eb24218314/4080296199/live-football-tv-sports-a0b-screenshot.png",
-    streamUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-    now: "Live: Football Highlights",
-    next: "10:00 - Live Match",
-  },
-  {
-    id: 3,
-    name: "Kids Zone",
-    category: "Kids",
-    lang: "EN",
-    premium: false,
-    rating: 3,
-    logo: "https://thumbs.dreamstime.com/z/kids-zone-banner-design-children-playground-area-poster-concept-group-little-boys-girls-laying-together-vector-141007727.jpg",
-    streamUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-    now: "Live: Cartoon Marathon",
-    next: "11:00 - Learning Hour",
-  },
-  {
-    id: 4,
-    name: "Regional Music",
-    category: "Music",
-    lang: "HI",
-    premium: false,
-    rating: 4,
-    logo: "https://static.vecteezy.com/system/resources/previews/021/991/178/large_2x/colorful-music-notes-background-with-sheet-music-disc-and-treble-clef-illustration-ai-generative-free-photo.jpg",
-    streamUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
-    now: "Live: Top Hits",
-    next: "12:00 - New Releases",
-  },
-];
 
 export default function LiveTVPage() {
-  const [channels, setChannels] = useState(CHANNELS);
+  const [channels, setChannels] = useState([]);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [langFilter, setLangFilter] = useState("All");
@@ -99,6 +52,36 @@ export default function LiveTVPage() {
     const parentalBlocked = parentalLock && c.category === "Adult"; 
     return matchesQuery && matchesCategory && matchesLanguage && !parentalBlocked;
   });
+useEffect(() => {
+  let alive = true;
+  async function load() {
+    try {
+      const res = await axios.get(`${API_BASE}/live`, {
+        params: { category: categoryFilter, lang: langFilter, q: query },
+      });
+      // service returns { total, items }
+      const mapped = res.data.items.map((c) => ({
+        id: c._id,
+        name: c.channelName,
+        category: c.category,
+        lang: (c.language || "EN").toUpperCase(),
+        premium: !!c.isPremium,
+        rating: c.rating || 0,
+        logo: c.thumbnailUrl,
+        streamUrl: c.streamUrl,
+        now: c.programTitle || "Live",
+        next: c.nextProgram || "",
+      }));
+      if (alive) setChannels(mapped);
+    } catch (e) {
+      console.error("Live TV fetch failed:", e);
+    }
+  }
+  load();
+  return () => {
+    alive = false;
+  };
+}, [API_BASE, categoryFilter, langFilter, query]);
 
   function openPlayer(ch) {
     if(ch.premium && !window.confirm("Premium channel! Subscribe to watch?")) return;
@@ -230,36 +213,44 @@ export default function LiveTVPage() {
             <div className="p-3 rounded shadow-sm bg-white">
               <h5 className="mb-3">Featured Live Now</h5>
               <Row>
-                <Col md={6}>
-                  <Card className="mb-3">
-                    <div style={{position:"relative"}}>
-                      <Card.Img src={channels[0].logo} style={{height:220, objectFit:"cover"}}/>
-                      <Badge bg="danger" style={{position:"absolute", top:8, left:8}}>LIVE</Badge>
-                    </div>
-                    <Card.Body>
-                      <Card.Title>Featured: {channels[0].name}</Card.Title>
-                      <Card.Text>{channels[0].now}</Card.Text>
-                      <Button onClick={()=>openPlayer(channels[0])}>Watch Now</Button>{" "}
-                      <Button variant="outline-secondary" onClick={()=>addReminder(channels[0])}>Remind Me</Button>
-                    </Card.Body>
-                  </Card>
-                </Col>
-                <Col md={6}>
-                  <div className="d-flex gap-2 flex-wrap">
-                    {channels.slice(1).map(c=>(
-                      <Card key={c.id} style={{width:"48%"}} className="mb-2">
-                        <Card.Img src={c.logo} style={{height:100, objectFit:"cover"}}/>
+             {channels.length > 0 ? (
+                  <>
+                   <Col md={6}>
+                     <Card className="mb-3">
+                        <div style={{position:"relative"}}>
+                          <Card.Img src={channels[0].logo || "https://via.placeholder.com/800x450?text=LIVE"} style={{height:220, objectFit:"cover"}}/>
+                          <Badge bg="danger" style={{position:"absolute", top:8, left:8}}>LIVE</Badge>
+                        </div>
                         <Card.Body>
-                          <Card.Title className="small mb-1">{c.name}</Card.Title>
-                          <small className="text-muted">{c.now}</small>
-                          <div className="mt-2">
-                            <Button size="sm" onClick={()=>openPlayer(c)}>Watch</Button>
-                          </div>
+                          <Card.Title>Featured: {channels[0].name}</Card.Title>
+                          <Card.Text>{channels[0].now}</Card.Text>
+                          <Button onClick={()=>openPlayer(channels[0])}>Watch Now</Button>{" "}
+                          <Button variant="outline-secondary" onClick={()=>addReminder(channels[0])}>Remind Me</Button>
                         </Card.Body>
                       </Card>
-                    ))}
-                  </div>
-                </Col>
+                    </Col>
+                    <Col md={6}>
+                     <div className="d-flex gap-2 flex-wrap">
+                        {channels.slice(1).map(c=>(
+                          <Card key={c.id} style={{width:"48%"}} className="mb-2">
+                            <Card.Img src={c.logo || "https://via.placeholder.com/400x225?text=Channel"} style={{height:100, objectFit:"cover"}}/>
+                           <Card.Body>
+                              <Card.Title className="small mb-1">{c.name}</Card.Title>
+                              <small className="text-muted">{c.now}</small>
+                              <div className="mt-2">
+                               <Button size="sm" onClick={()=>openPlayer(c)}>Watch</Button>
+                              </div>
+                            </Card.Body>
+                          </Card>
+                        ))}
+                      </div>
+                    </Col>
+                  </>
+                ) : (
+                  <Col xs={12}>
+                    <div className="text-muted">Loading live channels…</div>
+                  </Col>
+               )}
               </Row>
             </div>
 

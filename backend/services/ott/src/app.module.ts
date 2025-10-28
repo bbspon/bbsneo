@@ -7,6 +7,7 @@ import { TrendingService } from "./trending/trending.service";
 import { ReelsModule } from "./reels/reels.module";
 import { MoviesModule } from "./movies/movies.module";
 import { CategoriesModule } from "./categories/categories.module";
+import { LiveModule } from "./live/schemas/live.module";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CategoriesModule } from "./categories/categories.module";
     ReelsModule,
     MoviesModule,
     CategoriesModule,
+    LiveModule,
   ],
   controllers: [TrendingController],
   providers: [TrendingService],
