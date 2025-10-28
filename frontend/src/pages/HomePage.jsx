@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { IoClose } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import {
@@ -39,8 +39,13 @@ import {
   FaVolumeMute,
 } from "react-icons/fa";
 
-// ---------- DEMO DATA ---------- //
-const heroSlides = [
+import axios from "axios";
+const API_BASE = (
+  import.meta?.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+).replace(/\/+$/, "");
+
+/* ---------- DEMO DATA (kept as fallback) ---------- */
+const DEFAULT_HERO = [
   {
     title: "Epic Adventure 1",
     subtitle: "Streaming now!",
@@ -64,13 +69,13 @@ const makeMovies = (prefix, count, genre) =>
     genre,
   }));
 
-const allContent = [
+const DEFAULT_ALL = [
   ...makeMovies("Action", 8, "Action"),
   ...makeMovies("Drama", 8, "Drama"),
   ...makeMovies("Comedy", 8, "Comedy"),
 ];
 
-// ---------- COMPONENT ---------- //
+/* ---------- COMPONENT ---------- */
 const HomePage = () => {
   const [watchlist, setWatchlist] = useState([]);
   const [collapsed, setCollapsed] = useState(false);
@@ -84,9 +89,38 @@ const HomePage = () => {
     JSON.parse(localStorage.getItem("continue")) || []
   );
 
-  const filtered = allContent.filter((m) =>
-    m.title.toLowerCase().includes(query.toLowerCase())
-  );
+  /* NEW: data from API (+ fallback to demo) */
+  const [heroSlides, setHeroSlides] = useState(DEFAULT_HERO);
+  // rows: [{ label: 'All'|'Action'|'Drama'|'Comedy', items: [{id,title,img,previewUrl,genre}] }]
+  const [rows, setRows] = useState([
+    { label: "All", items: DEFAULT_ALL },
+    { label: "Action", items: DEFAULT_ALL.filter((i) => i.genre === "Action") },
+    { label: "Drama", items: DEFAULT_ALL.filter((i) => i.genre === "Drama") },
+    { label: "Comedy", items: DEFAULT_ALL.filter((i) => i.genre === "Comedy") },
+  ]);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const [h, r] = await Promise.all([
+          axios.get(`${API_BASE}/home/hero`),
+          axios.get(`${API_BASE}/home/rows`),
+        ]);
+         console.log("✅ HERO API Response:", h.data);
+         console.log("✅ ROWS API Response:", r.data);
+        if (!alive) return;
+        if (Array.isArray(h.data) && h.data.length) setHeroSlides(h.data);
+        if (Array.isArray(r.data) && r.data.length) setRows(r.data);
+      } catch (e) {
+        console.warn("Home API error, using fallback:", e?.message || e);
+      }
+    }
+    load();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const genres = ["All", "Action", "Drama", "Comedy"];
 
@@ -118,10 +152,17 @@ const HomePage = () => {
     setContinueWatching(updated);
   };
 
-  const visibleContent =
+  /* NEW: derive visible lists from rows (fallback-safe) */
+  const flatAll = rows.find((r) => r.label === "All")?.items || DEFAULT_ALL;
+  const filtered = flatAll.filter((m) =>
+    m.title.toLowerCase().includes(query.toLowerCase())
+  );
+  const currentItems =
     selectedGenre === "All"
-      ? allContent
-      : allContent.filter((c) => c.genre === selectedGenre);
+      ? flatAll
+      : rows.find((r) => r.label === selectedGenre)?.items || [];
+  const visibleContent = currentItems;
+
   const videoRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
@@ -142,6 +183,7 @@ const HomePage = () => {
     videoRef.current.muted = !videoRef.current.muted;
     setIsMuted(videoRef.current.muted);
   };
+
   return (
     <>
       <div
@@ -249,38 +291,40 @@ const HomePage = () => {
         <div className="main-content">
           {/* Hero Carousel */}
           <Carousel fade interval={4000}>
-            {heroSlides.map((slide, idx) => (
-              <Carousel.Item key={idx}>
-                <div
-                  className="hero-slide"
-                  style={{
-                    backgroundImage: `url(${slide.img})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    height: "550px",
-                  }}
-                >
-                  <div className="hero-overlay">
-                    <h1>{slide.title}</h1>
-                    <p>{slide.subtitle}</p>
-                    <Button
-                      variant="danger"
-                      className="hero-btn"
-                      onClick={() => handlePlay(slide)}
-                    >
-                      Play Now
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="hero-btn"
-                      onClick={() => addToWatchlist(slide)}
-                    >
-                      Add to Watchlist
-                    </Button>
+            {(heroSlides && heroSlides.length ? heroSlides : DEFAULT_HERO).map(
+              (slide, idx) => (
+                <Carousel.Item key={idx}>
+                  <div
+                    className="hero-slide"
+                    style={{
+                      backgroundImage: `url(${slide.img})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      height: "550px",
+                    }}
+                  >
+                    <div className="hero-overlay">
+                      <h1>{slide.title}</h1>
+                      <p>{slide.subtitle}</p>
+                      <Button
+                        variant="danger"
+                        className="hero-btn"
+                        onClick={() => handlePlay(slide)}
+                      >
+                        Play Now
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="hero-btn"
+                        onClick={() => addToWatchlist(slide)}
+                      >
+                        Add to Watchlist
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </Carousel.Item>
-            ))}
+                </Carousel.Item>
+              )
+            )}
           </Carousel>
 
           <Container fluid className="content-container">
@@ -349,7 +393,13 @@ const HomePage = () => {
                 <Col key={item.id} xs={6} sm={4} md={3} lg={2} className="mb-4">
                   <Card className="content-card">
                     <div className="preview-wrapper">
-                      <Card.Img variant="top" src={item.img} />
+                      <Card.Img
+                        variant="top"
+                        src={
+                          item.img ||
+                          "https://via.placeholder.com/400x600?text=Poster"
+                        }
+                      />
                       <video
                         className="preview-video"
                         src={item.previewUrl}
@@ -662,11 +712,10 @@ const HomePage = () => {
 
         .genre-bar { display:flex; flex-wrap:wrap; }
         .card-title-fixed {
-  white-space: nowrap;
-  overflow: hidden;
-  font-size: clamp(0.8rem, 2vw, 1rem); /* Responsive font: min 0.8rem, max 1rem */
-}
-
+          white-space: nowrap;
+          overflow: hidden;
+          font-size: clamp(0.8rem, 2vw, 1rem);
+        }
       `}</style>
     </>
   );

@@ -8,6 +8,7 @@ import { ReelsModule } from "./reels/reels.module";
 import { MoviesModule } from "./movies/movies.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { LiveModule } from "./live/schemas/live.module";
+import { HomeModule } from "./home/home.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { LiveModule } from "./live/schemas/live.module";
     MoviesModule,
     CategoriesModule,
     LiveModule,
+    HomeModule,
   ],
   controllers: [TrendingController],
   providers: [TrendingService],
