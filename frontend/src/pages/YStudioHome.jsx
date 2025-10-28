@@ -23,78 +23,74 @@ import { FaFacebookMessenger, FaTv } from "react-icons/fa";
 import { FaBusinessTime } from "react-icons/fa6";
 import { PiPopcornDuotone } from "react-icons/pi";
 
-// Dummy video data
-const dummyVideos = [
-  {
-    id: 1,
-    title: "React Tutorial for Beginners",
-    type: "Trending",
-    channel: "Code Academy",
-    views: "1.2M",
-    duration: "12:34",
-    thumbnail: "https://i.ytimg.com/vi/dGcsHMXbSOA/hqdefault.jpg",
-    videoUrl:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
+// === Live API integration (replaces dummy data) ===
+const API_BASE = (
+  import.meta?.env?.VITE_OTT_URL || "http://127.0.0.1:3104"
+).replace(/\/+$/, "");
+
+const yStudio = {
+  list: async (params = {}) => {
+    const qs = new URLSearchParams({
+      limit: 50,
+      ...params,
+    }).toString();
+    const r = await fetch(
+      `${API_BASE}/api/ystudio/videos${qs ? `?${qs}` : ""}`
+    );
+    if (!r.ok) throw new Error("Failed to load videos");
+       const json = await r.json();
+   // Support: either { items: [...] } or plain array
+  return Array.isArray(json) ? { items: json } : json;
   },
-  {
-    id: 2,
-    title: "Learn JavaScript in 1 Hour",
-    type: "Live",
-    channel: "JS Mastery",
-    views: "900K",
-    duration: "1:02:12",
-    thumbnail: "https://i.ytimg.com/vi/W6NZfCO5SIk/hqdefault.jpg",
-    videoUrl:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-  },
-  {
-    id: 3,
-    title: "Top 10 CSS Tricks You Must Know",
-    type: "Reels",
-    channel: "Design Hub",
-    views: "500K",
-    duration: "8:45",
-    thumbnail: "https://i.ytimg.com/vi/1Rs2ND1ryYc/hqdefault.jpg",
-    videoUrl:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-  },
-  {
-    id: 4,
-    title: "Best Music Mix 2025",
-    type: "Music",
-    channel: "Music Channel",
-    views: "2.3M",
-    duration: "3:45:12",
-    thumbnail: "https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg",
-    videoUrl:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-  },
-  {
-    id: 5,
-    title: "Funny Shorts Compilation",
-    type: "Shorts",
-    channel: "Comedy Central",
-    views: "3.1M",
-    duration: "5:12",
-    thumbnail: "https://i.ytimg.com/vi/VIDEO_ID/hqdefault.jpg",
-    videoUrl:
-      "https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4",
-  },
-];
+};
+
+const formatViews = (n) => {
+  if (typeof n !== "number") return n ?? "0";
+  if (n >= 1_000_000)
+    return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+};
+// === end API helper ===
 
 const sidebarItems = [
+  {
+    name: "Y-Studio",
+    icon: <FaHome />,
+    subItems: [
+      {
+        name: "Creator Submodules",
+        subItems: [
+          { name: "Trending", icon: <FaFire />, path: "/trending" },
+          { name: "Reel & Shorts", icon: <SiShortcut />, path: "/reel-short" },
+          { name: "Live TV", icon: <FaTv />, path: "/live" },
+          { name: "Event", icon: <SiEventstore />, path: "/event" },
+        ],
+      },
+      {
+        name: "Business / Tools",
+        subItems: [
+          { name: "Ad Manager", icon: <FaAdversal />, path: "/ad-manager" },
+          {
+            name: "Business Suite",
+            icon: <FaBusinessTime />,
+            path: "/business-suite",
+          },
+          { name: "Meta AI", icon: <TbBrandMetabrainz />, path: "/meta-ai" },
+          {
+            name: "Marketplace",
+            icon: <SiCoinmarketcap />,
+            path: "/marketplace",
+          },
+          { name: "Groups", icon: <HiMiniUserGroup />, path: "/groups" },
+        ],
+      },
+    ],
+  },
+  // Optional main/global items
   { name: "Home", icon: <FaHome />, path: "/home" },
   { name: "Search", icon: <FaSearch />, path: "/search-recommendations" },
   { name: "Movies", icon: <PiPopcornDuotone />, path: "/movies" },
-  { name: "Business Suite", icon: <FaBusinessTime />, path: "/business-suite" },
-  { name: "Trending", icon: <FaFire />, path: "/trending" },
-  { name: "Live Tv", icon: <FaTv />, path: "/live" },
-  { name: "Meta AI", icon: <TbBrandMetabrainz />, path: "/meta-ai" },
-  { name: "Groups", icon: <HiMiniUserGroup />, path: "/groups" },
-  { name: "Marketplace", icon: <SiCoinmarketcap />, path: "/marketplace" },
-  { name: "Event", icon: <SiEventstore />, path: "/event" },
-  { name: "Ad Manager", icon: <FaAdversal />, path: "/ad-manager" },
-  { name: "Reels & Shorts", icon: <SiShortcut />, path: "/reel-short" },
   { name: "Messenger", icon: <FaFacebookMessenger />, path: "/messenger" },
 ];
 
@@ -106,21 +102,62 @@ const YoutubeHomePage = () => {
   const [activeSidebar, setActiveSidebar] = useState("Home");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-  const [filteredVideos, setFilteredVideos] = useState(dummyVideos);
+
+  // Source list from API (was dummyVideos)
+  const [sourceVideos, setSourceVideos] = useState([]);
+  const [filteredVideos, setFilteredVideos] = useState([]);
   const reelRefs = useRef({});
 
+  // Load from backend and map to existing UI keys
   useEffect(() => {
-    let videos = dummyVideos;
+    (async () => {
+      try {
+        const data = await yStudio.list();
+ const mapped = (data?.items || []).map((v) => {
+   const id =
+     typeof v._id === "string"
+       ? v._id
+       : v?._id?.$oid ?? v.id;
+   const uiType = v.type || v.category || "Trending";
+  const uiViews =
+     typeof v.views === "number" ? formatViews(v.views)
+     : typeof v.views === "string" ? v.views
+    : "0";
+  return {
+    id,
+     title: v.title,
+    type: uiType,
+     channel: v.channel || "Y-Studio",
+     views: uiViews,
+     duration: v.duration || "",
+     thumbnail: v.thumbnail,
+     videoUrl: v.videoUrl,
+   };
+ });
+    setSourceVideos(mapped);
+    setFilteredVideos(mapped);
+
+      } catch (e) {
+        // If API fails, keep empty to avoid mixing with placeholders
+        setSourceVideos([]);
+        setFilteredVideos([]);
+        // console.warn("YStudio API fetch failed", e);
+      }
+    })();
+  }, []);
+
+  // Apply search + filter to the live list
+  useEffect(() => {
+    let videos = [...sourceVideos];
     if (searchQuery) {
-      videos = videos.filter((v) =>
-        v.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const q = searchQuery.toLowerCase();
+      videos = videos.filter((v) => v.title?.toLowerCase().includes(q));
     }
     if (activeFilter !== "All") {
       videos = videos.filter((v) => v.type === activeFilter);
     }
     setFilteredVideos(videos);
-  }, [searchQuery, activeFilter]);
+  }, [searchQuery, activeFilter, sourceVideos]);
 
   const handleMouseEnter = (id) => {
     Object.keys(reelRefs.current).forEach((vid) => {
@@ -196,20 +233,87 @@ const YoutubeHomePage = () => {
             style={{ gap: "1rem" }}
           >
             {sidebarItems.map((item) => (
-              <Nav.Link
-                as={Link} // ✅ Use Link
-                to={item.path} // ✅ Path from sidebarItems
-                key={item.name}
-                active={activeSidebar === item.name}
-                onClick={() => setActiveSidebar(item.name)}
-                className="d-flex align-items-end text-decoration-none text-white  w-100"
-                style={{
-                  justifyContent: sidebarOpen ? "flex-start" : "center",
-                }}
-              >
-                <span style={{ fontSize: "1.2rem" }}>{item.icon}</span>
-                {sidebarOpen && <span className="ms-2">{item.name}</span>}
-              </Nav.Link>
+              <div key={item.name} className="w-100">
+                {!item.subItems ? (
+                  <Nav.Link
+                    as={Link}
+                    to={item.path}
+                    key={item.name}
+                    active={activeSidebar === item.name}
+                    onClick={() => setActiveSidebar(item.name)}
+                    className="d-flex align-items-end text-decoration-none text-white w-100"
+                    style={{
+                      justifyContent: sidebarOpen ? "flex-start" : "center",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.2rem" }}>{item.icon}</span>
+                    {sidebarOpen && <span className="ms-2">{item.name}</span>}
+                  </Nav.Link>
+                ) : (
+                  <div className="ms-2">
+                    <div className="text-uppercase fw-bold text-light mt-2 mb-1">
+                      {sidebarOpen && item.name}
+                    </div>
+
+                    {item.subItems.map((sub) => (
+                      <div key={sub.name} className="ms-3">
+                        {sub.subItems ? (
+                          <>
+                            <div className="text-info small fw-semibold mt-2">
+                              {sidebarOpen && sub.name}
+                            </div>
+                            <div className="ms-3">
+                              {sub.subItems.map((subsub) => (
+                                <Nav.Link
+                                  as={Link}
+                                  to={subsub.path}
+                                  key={subsub.name}
+                                  active={activeSidebar === subsub.name}
+                                  onClick={() => setActiveSidebar(subsub.name)}
+                                  className="d-flex align-items-end text-decoration-none text-white w-100 py-1"
+                                  style={{
+                                    justifyContent: sidebarOpen
+                                      ? "flex-start"
+                                      : "center",
+                                  }}
+                                >
+                                  <span style={{ fontSize: "1.1rem" }}>
+                                    {subsub.icon}
+                                  </span>
+                                  {sidebarOpen && (
+                                    <span className="ms-2">{subsub.name}</span>
+                                  )}
+                                </Nav.Link>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <Nav.Link
+                            as={Link}
+                            to={sub.path}
+                            key={sub.name}
+                            active={activeSidebar === sub.name}
+                            onClick={() => setActiveSidebar(sub.name)}
+                            className="d-flex align-items-end text-decoration-none text-white w-100 py-1"
+                            style={{
+                              justifyContent: sidebarOpen
+                                ? "flex-start"
+                                : "center",
+                            }}
+                          >
+                            <span style={{ fontSize: "1.1rem" }}>
+                              {sub.icon}
+                            </span>
+                            {sidebarOpen && (
+                              <span className="ms-2">{sub.name}</span>
+                            )}
+                          </Nav.Link>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </Nav>
         </Col>
@@ -294,6 +398,25 @@ const YoutubeHomePage = () => {
                       <Card.Text style={{ fontSize: "0.85rem", color: "gray" }}>
                         {video.channel} • {video.views} views • {video.duration}
                       </Card.Text>
+                      <div className="d-flex justify-content-between">
+                        <Button
+                          size="sm"
+                          variant="outline-dark"
+                          onMouseEnter={() => handleMouseEnter(video.id)}
+                          onMouseLeave={() => handleMouseLeave(video.id)}
+                          onClick={() => handleReelClick(video.id)}
+                        >
+                          <FaPlayCircle className="me-1" />
+                          Play
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => window.open(video.videoUrl, "_blank")}
+                        >
+                          Open
+                        </Button>
+                      </div>
                     </Card.Body>
                   </Card>
                 </Col>
