@@ -30,44 +30,89 @@ import "bootstrap/dist/css/bootstrap.min.css";
 const API_BASE = (
   import.meta?.env?.VITE_YSTUDIO_URL || "http://127.0.0.1:3106"
 ).replace(/\/+$/, "");
+// Add this helper above the API functions
+function authHeaders() {
+  const token = localStorage.getItem("bbsneo_token"); // or sessionStorage if you use that
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+function getThumbnail(input) {
+  // 1) No input
+  if (!input) return "";
+
+  // 2) If a string is passed (direct image URL or a video URL)
+  if (typeof input === "string") {
+    const direct = input.trim();
+    // if it's a direct URL and not a placeholder, use it
+    if (direct && !/VIDEO_ID/.test(direct) && /^https?:\/\//i.test(direct)) {
+      return direct;
+    }
+    // otherwise try to extract YouTube ID from the string
+    const m =
+      direct.match(/[?&]v=([^&]+)/) ||
+      direct.match(/youtu\.be\/([^?&/]+)/) ||
+      direct.match(/youtube\.com\/embed\/([^?&/]+)/);
+    const id = m && m[1] ? m[1] : null;
+    return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
+  }
+
+  // 3) Original object behavior
+  const { coverImageUrl, image, videoUrl, video } = input || {};
+  const direct = coverImageUrl || image || "";
+  if (direct && !/VIDEO_ID/.test(direct)) return direct;
+
+  const v = videoUrl || video || "";
+  const m =
+    v.match(/[?&]v=([^&]+)/) ||
+    v.match(/youtu\.be\/([^?&/]+)/) ||
+    v.match(/youtube\.com\/embed\/([^?&/]+)/);
+  const id = m && m[1] ? m[1] : null;
+  return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : direct;
+}
+
 const eventsApi = {
   async list(params = {}) {
     const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${API_BASE}/api/events${qs ? `?${qs}` : ""}`);
+    const res = await fetch(`${API_BASE}/events${qs ? `?${qs}` : ""}`, {
+      headers: { ...authHeaders() }, // add headers here
+    });
     if (!res.ok) throw new Error("Failed to load events");
     const json = await res.json();
-    // Support either {items:[...]} or a plain array
     return Array.isArray(json) ? json : json.items || [];
   },
+
   async create(payload) {
-    const res = await fetch(`${API_BASE}/api/events`, {
+    const res = await fetch(`${API_BASE}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Create failed");
     return res.json();
   },
+
   async update(id, payload) {
-    const res = await fetch(`${API_BASE}/api/events/${id}`, {
+    const res = await fetch(`${API_BASE}/events/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Update failed");
     return res.json();
   },
+
   async remove(id) {
-    const res = await fetch(`${API_BASE}/api/events/${id}`, {
+    const res = await fetch(`${API_BASE}/events/${id}`, {
       method: "DELETE",
+      headers: { ...authHeaders() },
     });
     if (!res.ok) throw new Error("Delete failed");
     return res.json();
   },
+
   async rsvp(id, userId) {
-    const res = await fetch(`${API_BASE}/api/events/${id}/rsvp`, {
+    const res = await fetch(`${API_BASE}/events/${id}/rsvp`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ userId }),
     });
     if (!res.ok) throw new Error("RSVP failed");
@@ -77,7 +122,6 @@ const eventsApi = {
 
 // ---------- helpers to map API <-> UI without changing UI fields ----------
 const toUiShape = (doc) => {
-  // Accept both _id and id
   const id =
     typeof doc._id === "string" ? doc._id : doc._id?.$oid || doc.id || doc._id;
   const dt = doc.startDateTime ? new Date(doc.startDateTime) : null;
@@ -100,7 +144,14 @@ const toUiShape = (doc) => {
     category: doc.category || "Tech",
     description: doc.description || "",
     attendees: Array.isArray(doc.attendees) ? doc.attendees : [],
-    image: doc.coverImageUrl || doc.image || "",
+    image: getThumbnail({
+      coverImageUrl: doc.coverImageUrl,
+      image: doc.image,
+      videoUrl: doc.videoUrl,
+      video: doc.video,
+    }),
+    thumbnail: doc.coverImageUrl || doc.image || "",
+    videoUrl: doc.videoUrl || doc.video || "",
     video: doc.videoUrl || doc.video || "",
     online: doc.locationType === "Online" || doc.online === true,
     ticketPrice: doc.ticketPrice ?? 0,
@@ -109,13 +160,16 @@ const toUiShape = (doc) => {
 };
 
 const toApiShape = (ui) => {
-  // Combine date + time to ISO datetime if both exist
-  let startDateTime = undefined;
+  let startDateTime;
   if (ui.date) {
-    const timePart = ui.time && ui.time.trim() ? ui.time : "00:00";
-    // Accept "10:00 AM" or "18:30"
-    const t = new Date(`${ui.date} ${timePart}`);
+    const t = new Date(`${ui.date} ${ui.time?.trim() || "00:00"}`);
     if (!isNaN(t.getTime())) startDateTime = t.toISOString();
+  }
+
+  // Prefer explicit image; otherwise derive from video if YouTube; avoid VIDEO_ID placeholder
+  let coverImageUrl = ui.image?.trim() || "";
+  if (!coverImageUrl || /VIDEO_ID/.test(coverImageUrl)) {
+    coverImageUrl = getThumbnail({ videoUrl: ui.video });
   }
 
   return {
@@ -129,11 +183,10 @@ const toApiShape = (ui) => {
         : "Offline",
     location: ui.location,
     startDateTime,
-    coverImageUrl: ui.image,
-    videoUrl: ui.video,
+    coverImageUrl, // <- normalized
+    videoUrl: ui.video, // <- pass through
     ticketPrice: Number(ui.ticketPrice) || 0,
     attendeeLimit: Number(ui.maxAttendees) || 100,
-    // createdBy should be set by auth in backend; provide placeholder fallback if needed
   };
 };
 
@@ -589,21 +642,18 @@ export default function EventPage() {
                   onClick={() => openDetail(event)}
                 >
                   <div
+                    className="ratio ratio-16x9 overflow-hidden"
                     style={{
-                      height: 160,
-                      overflow: "hidden",
                       borderTopLeftRadius: ".25rem",
                       borderTopRightRadius: ".25rem",
                     }}
                   >
                     <img
-                      src={event.image}
+                      src={getThumbnail(event.thumbnail || event.videoUrl)}
                       alt={event.title}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
+                      className="w-100 h-100 d-block"
+                      style={{ objectFit: "cover" }}
+                      loading="lazy"
                     />
                   </div>
                   <Card.Body className="d-flex flex-column">
