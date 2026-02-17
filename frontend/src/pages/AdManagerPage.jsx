@@ -1,5 +1,6 @@
 // ExtendedAdManagerPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { API_BASE } from "../config/api";
 import {
   Container,
   Row,
@@ -33,11 +34,37 @@ import {
 import "bootstrap/dist/css/bootstrap.min.css";
 import Swal from "sweetalert2";
 import Webcam from "react-webcam";
-// Mock function to simulate verification
-const fakeVerifyPhone = (phone) =>
-  new Promise((resolve) =>
-    setTimeout(() => resolve(phone === "9876543210"), 1500)
-  );
+// helper for OTP endpoints (same as login)
+async function requestSendOtp(phone) {
+  const base = (
+    import.meta.env?.VITE_IDENTITY_URL ||
+    (typeof API_BASE !== "undefined" ? API_BASE : undefined) ||
+    "http://127.0.0.1:3103"
+  ).replace(/\/+$/, "");
+  const res = await fetch(`${base}/send-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return true;
+}
+
+async function requestVerifyOtp(phone, otp) {
+  const base = (
+    import.meta.env?.VITE_IDENTITY_URL ||
+    (typeof API_BASE !== "undefined" ? API_BASE : undefined) ||
+    "http://127.0.0.1:3103"
+  ).replace(/\/+$/, "");
+  const res = await fetch(`${base}/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, otp }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return res.ok && data.ok;
+}
 
 const sampleCampaigns = [
   {
@@ -129,17 +156,14 @@ export default function ExtendedAdManagerPage() {
   // Handle phone verification
   const handleSendOTP = async () => {
     setLoading(true);
-    const verified = await fakeVerifyPhone(phone);
-    setLoading(false);
-    if (verified) {
-      Swal.fire("Verified!", "Phone verified successfully.", "success");
+    try {
+      await requestSendOtp(phone);
+      Swal.fire("Success", "OTP sent to your number.", "success");
       setOtpSent(true);
-    } else {
-      Swal.fire(
-        "Failed",
-        "Phone verification failed. Use 9876543210 to test.",
-        "error"
-      );
+    } catch (err) {
+      Swal.fire("Failed", err.message || "Unable to send OTP", "error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -154,21 +178,16 @@ export default function ExtendedAdManagerPage() {
     setCapturedImage(imageSrc);
     setShowCamera(false);
   };
-  const handleVerifyOTP = () => {
-    if (otp === "1234") {
-      // for testing, assume 1234 is correct OTP
-      setOtpVerified(true);
-      Swal.fire({
-        icon: "success",
-        title: "Phone Verified!",
-        text: `Phone number ${phone} verified successfully.`,
-      });
-    } else {
-      Swal.fire({
-        icon: "error",
-        title: "OTP Incorrect",
-        text: "Please try again.",
-      });
+  const handleVerifyOTP = async () => {
+    try {
+      const ok = await requestVerifyOtp(phone, otp);
+      if (ok) {
+        setOtpVerified(true);
+      } else {
+        throw new Error("Invalid OTP");
+      }
+    } catch (e) {
+      Swal.fire("Error", e.message || "Invalid code", "error");
     }
   };
 

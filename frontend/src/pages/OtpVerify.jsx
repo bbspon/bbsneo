@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { API_BASE } from "../config/api";
 
 const OtpVerify = () => {
   const navigate = useNavigate();
@@ -18,11 +19,12 @@ const OtpVerify = () => {
     }
   }, [location.state]);
 
-  // ✅ Correct submit handler
-  const handleSubmit = (e) => {
+  const [loading, setLoading] = useState(false);
+
+  // submit OTP to backend
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Basic OTP validation (6 digits)
     if (!/^\d{6}$/.test(otp)) {
       Swal.fire({
         icon: "error",
@@ -32,17 +34,43 @@ const OtpVerify = () => {
       return;
     }
 
-    // Mock success
-    Swal.fire({
-      icon: "success",
-      title: "Verification Successful",
-      text: `Phone +91${phone} verified!`,
-      timer: 2000,
-      showConfirmButton: false,
-    });
+    setLoading(true);
+    try {
+      const base = (
+        import.meta.env?.VITE_IDENTITY_URL ||
+        (typeof API_BASE !== "undefined" ? API_BASE : undefined) ||
+        "http://127.0.0.1:3103"
+      )
+        .replace(/\/+$/, "");
 
-    // Navigate to profile (mock)
-    setTimeout(() => navigate("/profile"), 1200);
+      const res = await fetch(`${base}/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, otp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Invalid code");
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "Verification Successful",
+        text: `Phone +91${phone} verified!`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      setTimeout(() => navigate("/profile"), 1201);
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Verification Failed",
+        text: err.message || "Invalid OTP",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -86,15 +114,37 @@ const OtpVerify = () => {
           <button
             type="button"
             className="btn btn-link p-0"
-            onClick={() =>
-              Swal.fire({
-                icon: "info",
-                title: "OTP Resent",
-                text: `Mock resend to +91${phone}`,
-                timer: 1500,
-                showConfirmButton: false,
-              })
-            }
+            disabled={loading}
+            onClick={async () => {
+              try {
+                const base = (
+                  import.meta.env?.VITE_IDENTITY_URL ||
+                  (typeof API_BASE !== "undefined" ? API_BASE : undefined) ||
+                  "http://127.0.0.1:3103"
+                )
+                  .replace(/\/+$/, "");
+                const r = await fetch(`${base}/send-otp`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ phone }),
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(d.error || "");
+                Swal.fire({
+                  icon: "info",
+                  title: "OTP Resent",
+                  text: `OTP resent to +91${phone}`,
+                  timer: 1500,
+                  showConfirmButton: false,
+                });
+              } catch (e) {
+                Swal.fire({
+                  icon: "error",
+                  title: "Unable to resend",
+                  text: e.message || "",
+                });
+              }
+            }}
           >
             Resend OTP
           </button>

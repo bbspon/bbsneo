@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
 import { UsersModule } from "./users/users.module";
 import { HealthModule } from "./health/health.module";
+import { OtpModule } from "./modules/otp/otp.module";
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { HealthModule } from "./health/health.module";
     }),
     UsersModule,
     HealthModule,
+    OtpModule,
   ],
 })
 export class AppModule {}

@@ -30,8 +30,8 @@ const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   // Phone login state
   const [phone, setPhone] = useState("");
-  // Mock flag for OTP
-  const [otpSent, setOtpSent] = useState(false);
+  // Phone login state
+  const [loadingOtp, setLoadingOtp] = useState(false);
 
   // Handle email/password input
   const handleChange = (e) =>
@@ -92,8 +92,8 @@ const Login = () => {
     }
   };
 
-  // Mock phone login logic (unchanged UI/flow)
-  const handlePhoneLogin = (e) => {
+  // real phone login logic using backend API
+  const handlePhoneLogin = async (e) => {
     e.preventDefault();
     if (!/^[0-9]{10}$/.test(phone)) {
       Swal.fire({
@@ -104,16 +104,46 @@ const Login = () => {
       return;
     }
 
-    setOtpSent(true);
-    Swal.fire({
-      icon: "success",
-      title: "OTP Sent",
-      text: `OTP sent to +91${phone}`,
-      timer: 2000,
-      showConfirmButton: false,
-    });
+    setLoadingOtp(true);
+    try {
+      // resolve API base exactly the same way the email flow does so that
+      // OTP will work whether the app is talking to the built‑in Next.js
+      // endpoints or an external identity service.
+      const base = (
+        import.meta.env?.VITE_IDENTITY_URL ||
+        API_BASE ||
+        "http://127.0.0.1:3103"
+      )
+        .replace(/\/+$/, "");
 
-    setTimeout(() => navigate("/otp-verify", { state: { phone } }), 1000);
+      const res = await fetch(`${base}/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "OTP Sent",
+        text: `OTP sent to +91${phone}`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      navigate("/otp-verify", { state: { phone } });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to send OTP",
+        text: err.message || "Server error",
+      });
+    } finally {
+      setLoadingOtp(false);
+    }
   };
 
   return (
@@ -179,8 +209,11 @@ const Login = () => {
                   required
                 />
               </div>
-              <button className="btn btn-primary w-100">
-                {otpSent ? "OTP Sent (Mock)" : "Get OTP"}
+              <button
+                className="btn btn-primary w-100"
+                disabled={loadingOtp}
+              >
+                {loadingOtp ? "Sending..." : "Get OTP"}
               </button>
             </form>
 
