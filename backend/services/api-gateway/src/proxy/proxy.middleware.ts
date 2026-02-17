@@ -6,7 +6,8 @@ import { Request, Response, NextFunction } from 'express';
  * Map service name -> local target
  */
 const map: Record<string, string> = {
-  identity: 'http://localhost:3102',
+  // identity service actually listens on 3103 (see main.ts), not 3102
+  identity: 'http://localhost:3103',
   ott: 'http://localhost:3103',
   messenger: 'http://localhost:3104',
   social: 'http://localhost:3105',
@@ -29,6 +30,20 @@ function normalizePath(req: Request): string {
 export class ProxyMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const path = normalizePath(req); // e.g. "/v1/identity" or "/v1/identity/profile"
+
+    // Public OTP endpoints live on the identity service but don't use the
+    // usual "/v1/<service>" prefix.  Proxy them explicitly so the gateway
+    // can be called at http://…:3103/send-otp (what the frontend does when
+  // talking directly to the identity service).
+  if (path === '/send-otp' || path === '/verify-otp') {
+      const target = map['identity'];
+      const proxy = createProxyMiddleware({
+        target,
+        changeOrigin: true,
+      } as any);
+      return proxy(req, res, next);
+    }
+
     // Match "/v1/<service>" at the start
     const match = path.match(/^\/v1\/([^/]+)/);
     if (match) {
